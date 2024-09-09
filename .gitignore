@@ -1,0 +1,37 @@
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+*.test
+
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+go.work
+
+termnex
+
+# file systems
+.DS_Store
+Thumbs.db
+
+
+.idea/
+*.swp
+*.swo
+
+*.log
+
+config.local.yaml
+
+
+*.tmp
+
+# maybe?
+*.db
+
+# bundle/
