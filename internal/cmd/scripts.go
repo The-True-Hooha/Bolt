@@ -33,7 +33,7 @@ func handleLsCommand() Command {
 		Name: "ls",
 		Description: "list the directory contents",
 		Flags: flags,
-		// Execute: ,
+		Execute: executeLsCommand(opts),
 	}
 }
 
@@ -151,25 +151,7 @@ func (cr *CommandRecord) Execute(name string, args []string) error {
 func InitCommands() *CommandRecord {
 	cr := CommandRegistry()
 
-	// TODO: how about joining tags together like ls -a or handling sub commands
-	// a new command
-	// cr.AddNew(Command{
-	// 	Name:        "ls",
-	// 	Description: "list all the contents in a directory",
-	// 	Tag: "",
-	// 	Execute: func(args []string) error {
-	// 		logger.Info("listing all the files in the directory")
-	// 		files, err := os.ReadDir(".")
-	// 		if err != nil {
-	// 			logger.Debug("some error occurred", err)
-
-	// 		}
-	// 		for _, file := range files {
-	// 			fmt.Println(file.Name())
-	// 		}
-	// 		return nil
-	// 	},
-	// })
+	cr.AddNew(handleLsCommand())
 
 	cr.AddNew(Command{
 		Name:        "cd",
