@@ -8,7 +8,7 @@ import (
 	"strings"
 	
 	"github.com/spf13/pflag"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils"
+	"github.com/The-True-Hooha/NimbleFiles/internal/utils/logger"
 	"github.com/The-True-Hooha/NimbleFiles/internal/utils/output"
 )
 
