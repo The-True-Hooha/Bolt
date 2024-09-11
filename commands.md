@@ -1,0 +1,51 @@
+# A list of commands to implement
+
+- `ls`: List directory contents.
+- `cd`: Change the current directory.
+- `pwd`: Print the current working directory.
+- `cp`: Copy files and directories.
+- `mv`: Move or rename files and directories.
+- `rm`: Remove files or directories.
+- `mkdir`: Make directories.
+- `touch`: Change file timestamps or create an empty file.
+- `find`: Search for files in a directory hierarchy.
+- `grep`: Search for a pattern within files.
+- `cat`: Concatenate and display file content.
+- `less`: View file content one screen at a time.
+- `more`: View file content one screen at a time.
+- `ln`: Make links between files.
+- `du`: Estimate file space usage.
+- `df`: Report file system disk space usage.
+- `tar`: Tape archive utility.
+- `gzip`: Compress or expand files.
+- `gunzip`: Expand gzip files.
+- `unzip`: Extract files from ZIP archives.
+- `zip`: Package and compress (archive) files.
+- `rsync`: Remote file and directory synchronization.
+- `scp`: Secure copy (remote file copy program).
+- `basename`: Strip directory and suffix from filenames.
+- `dirname`: Strip the last component from file names.
+- `file`: Determine file type.
+- `stat`: Display file or file system status.
+- `tree`: Display directories as trees (recursively).
+- `split`: Split a file into pieces.
+- `xargs`: Build and execute command lines from standard input.
+- `dd`: Convert and copy a file.
+- `diff`: Compare files line by line.
+- `patch`: Apply a diff file to an original.
+- `wc`: Print newline, word, and byte counts for each file.
+- `sort`: Sort lines of text files.
+- `uniq`: Report or omit repeated lines.
+- `head`: Output the first part of files.
+- `tail`: Output the last part of files.
+- `cut`: Remove sections from each line of files.
+- `paste`: Merge lines of files.
+- `join`: Join lines of two files on a common field.
+- `comm`: Compare two sorted files line by line.
+- `tr`: Translate or delete characters.
+- `iconv`: Convert encoding of characters.
+- `shred`: Overwrite a file to hide its contents, and optionally delete it.
+- `chattr`: Change file attributes on a Linux file system.
+- `lsattr`: List file attributes on a Linux file system.
+- `chmod`: Change file mode bits (permissions).
+- `chown`: Change file owner and group.
