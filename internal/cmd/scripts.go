@@ -12,7 +12,8 @@ import (
 
 var rootCmd = &cobra.Command{
 	Use: "NimbleFiles",
-	Short: "A blazingly fast modern terminal based file manager ",
+	Short: "A blazingly fast modern terminal based file manager written in Go",
+	Long: "",
 }
 
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	// "flag"
 	"fmt"
 	"log"
 	"os"
@@ -51,22 +50,10 @@ func checkAppDirectoriesExist() {
 }
 
 func main() {
-
 	command := cmd.InitCommands()
-	// flag.Parse()
-
-	// if flag.NArg() == 0 {
-	// 	fmt.Println("welcome, see the available commands")
-	// 	for _, cmd := range command.DisplayCommands() {
-	// 		fmt.Printf("  %s: %s\n", cmd.Name, cmd.Description)
-	// 	}
-	// 	return
-	// }
-	// name, args := cmd.ParseCommand(flag.Arg(0))
 	if err := command.Execute(); err != nil{
 		fmt.Println(err)
 		os.Exit(1)
 	}
 	
-
 }
