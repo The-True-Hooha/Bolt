@@ -1,16 +1,17 @@
 package main
 
 import (
-	"flag"
+	// "flag"
 	"fmt"
-	"github.com/The-True-Hooha/NimbleFiles/internal/cmd"
-	"github.com/The-True-Hooha/NimbleFiles/internal/config"
 	"log"
 	"os"
+	
+	"github.com/The-True-Hooha/NimbleFiles/internal/cmd"
+	"github.com/The-True-Hooha/NimbleFiles/internal/config"
 )
 
 var (
-	currentPath string
+	CurrentPath string
 	appConfig   *config.Config
 )
 
@@ -20,7 +21,7 @@ func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	// get the current working directory
-	currentPath, err = os.Getwd()
+	CurrentPath, err = os.Getwd()
 	if err != nil {
 		log.Fatalf("failed to get the current working directory: %v\n", err)
 	}
@@ -52,19 +53,20 @@ func checkAppDirectoriesExist() {
 func main() {
 
 	command := cmd.InitCommands()
-	flag.Parse()
+	// flag.Parse()
 
-	if flag.NArg() == 0 {
-		fmt.Println("welcome, see the available commands")
-		for _, cmd := range command.DisplayCommands() {
-			fmt.Printf("  %s: %s\n", cmd.Name, cmd.Description)
-		}
-		return
+	// if flag.NArg() == 0 {
+	// 	fmt.Println("welcome, see the available commands")
+	// 	for _, cmd := range command.DisplayCommands() {
+	// 		fmt.Printf("  %s: %s\n", cmd.Name, cmd.Description)
+	// 	}
+	// 	return
+	// }
+	// name, args := cmd.ParseCommand(flag.Arg(0))
+	if err := command.Execute(); err != nil{
+		fmt.Println(err)
+		os.Exit(1)
 	}
-	name, args := cmd.ParseCommand(flag.Arg(0))
-	err := command.Execute(name, args)
-	if err != nil {
-		fmt.Printf("some error here %s", err)
-	}
+	
 
 }
