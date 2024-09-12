@@ -1,4 +1,8 @@
-# Todo
+# IN ACTIVE DEVELOPMENT
+
+RELEASE COMING SOON
+
+## Todo
 
 - [x] create file arrangements
 - [x] create config
