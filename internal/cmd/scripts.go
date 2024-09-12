@@ -6,16 +6,19 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/ls"
 	"github.com/The-True-Hooha/NimbleFiles/internal/common"
+	"github.com/The-True-Hooha/NimbleFiles/internal/utils/ls"
 )
 
 var rootCmd = &cobra.Command{
-	Use: "NimbleFiles",
+	Use:   "NimbleFiles",
 	Short: "A blazingly fast modern terminal based file manager written in Go",
-	Long: "",
+	Long:  `a blazingly fast solution that ensures you can navigate, manage, 
+			and manipulate your files with unparalleled efficiency.
+			Whether you are a seasoned developer or a casual user, 
+			this terminal-based file manager offers a seamless experience
+			 that enhances productivity and streamlines workflows. `,
 }
-
 
 type CommandRecord struct {
 	command map[string]common.Command
@@ -31,9 +34,9 @@ func (cr *CommandRecord) AddNew(cmd common.Command) {
 	cr.command[cmd.Name] = cmd
 
 	cobra := &cobra.Command{
-		Use: cmd.Name,
+		Use:   cmd.Name,
 		Short: cmd.Description,
-		RunE: func(_ *cobra.Command, args []string)error{
+		RunE: func(_ *cobra.Command, args []string) error {
 			return cmd.Execute(args)
 		},
 	}
