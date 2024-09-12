@@ -35,7 +35,6 @@ func init() {
 }
 
 func checkAppDirectoriesExist() {
-	// fmt.Println(currentPath)
 	dir := []string{
 		appConfig.CacheDir,
 		appConfig.ConfigDir,
