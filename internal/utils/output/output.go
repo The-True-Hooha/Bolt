@@ -117,9 +117,9 @@ func fileIsExecutable(info fs.FileInfo) bool {
 func GetDefaultColumns() []ColumnStructure {
 	return []ColumnStructure{
 		{Header: "Mode", Width: 10, Format: "%-10s", Value: func(info fs.FileInfo) string { return info.Mode().String() }},
-		{Header: "Links", Width: 5, Format: "%5s", Value: func(info fs.FileInfo) string { return "1" }},                         // Placeholder
-		{Header: "Owner", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Geteuid()) }}, // Placeholder
-		{Header: "Group", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Getegid()) }}, // Placeholder
+		{Header: "Links", Width: 5, Format: "%5s", Value: func(info fs.FileInfo) string { return "1" }},
+		{Header: "Owner", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Geteuid()) }},
+		{Header: "Group", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Getegid()) }},
 		{Header: "Size", Width: 8, Format: "%8d", Value: func(info fs.FileInfo) string { return strconv.FormatInt(info.Size(), 10) }},
 		{Header: "Modified", Width: 20, Format: "%-20s", Value: func(info fs.FileInfo) string { return info.ModTime().Format(time.RFC3339) }},
 		{Header: "Name", Width: 0, Format: "%s", Value: func(info fs.FileInfo) string { return info.Name() }},

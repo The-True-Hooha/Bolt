@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	currentPath string
+	CurrentPath string
 	appConfig   *config.Config
 )
 
@@ -20,7 +20,7 @@ func init() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
 
 	// get the current working directory
-	currentPath, err = os.Getwd()
+	CurrentPath, err = os.Getwd()
 	if err != nil {
 		log.Fatalf("failed to get the current working directory: %v\n", err)
 	}
@@ -35,6 +35,7 @@ func init() {
 }
 
 func checkAppDirectoriesExist() {
+	// fmt.Println(currentPath)
 	dir := []string{
 		appConfig.CacheDir,
 		appConfig.ConfigDir,
