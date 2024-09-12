@@ -4,9 +4,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/spf13/cobra"
+
 	"github.com/The-True-Hooha/NimbleFiles/internal/utils/ls"
 	"github.com/The-True-Hooha/NimbleFiles/internal/common"
 )
+
+var rootCmd = &cobra.Command{
+	Use: "NimbleFiles",
+	Short: "A blazingly fast modern terminal based file manager ",
+}
+
 
 type CommandRecord struct {
 	command map[string]common.Command
@@ -20,6 +28,20 @@ func CommandRegistry() *CommandRecord {
 
 func (cr *CommandRecord) AddNew(cmd common.Command) {
 	cr.command[cmd.Name] = cmd
+
+	cobra := &cobra.Command{
+		Use: cmd.Name,
+		Short: cmd.Description,
+		RunE: func(_ *cobra.Command, args []string)error{
+			return cmd.Execute(args)
+		},
+	}
+
+	if cmd.Flags != nil {
+		cobra.Flags().AddFlagSet(cmd.Flags)
+	}
+
+	rootCmd.AddCommand(cobra)
 }
 
 func (cr *CommandRecord) DisplayCommands() []common.Command {
@@ -30,20 +52,16 @@ func (cr *CommandRecord) DisplayCommands() []common.Command {
 	return lists
 }
 
-// run the command by it's name with the argument attached
-func (cr *CommandRecord) Execute(name string, args []string) error {
-	cmd, isFound := cr.command[name]
-	if !isFound {
-		return fmt.Errorf("you entered an unknown command: %s", name)
-	}
-	return cmd.Execute(args)
+func (cr *CommandRecord) Execute() error {
+	return rootCmd.Execute()
 }
 
 func InitCommands() *CommandRecord {
 	cr := CommandRegistry()
+	ls := lscmd.HandleLsCommandTags()
+	cr.AddNew(ls)
 
-	cr.AddNew(lscmd.HandleLsCommandTags())
-
+	// TODO: move the below commands to their files
 	cr.AddNew(common.Command{
 		Name:        "cd",
 		Description: "change the current directory",

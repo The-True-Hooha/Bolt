@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -12,26 +13,28 @@ import (
 	"github.com/The-True-Hooha/NimbleFiles/internal/utils/output"
 	"github.com/spf13/pflag"
 )
-
+const (
+    Sort_Name   = "name"
+    Sort_size = "size"
+    Sort_CreatedDate  = "createdDate"
+)
 type LsOptions struct {
-	longFormat bool
-	showHidden bool
-	sortBy     string
-	reverse    bool
-	tags       string
+	LongFormat bool
+	ShowHidden bool
+	SortBy     string
+	Reverse    bool
+	Filter     string
 }
 
 func HandleLsCommandTags() common.Command {
 	opts := &LsOptions{}
 
-	// DoSomething()
-
 	flags := pflag.NewFlagSet("ls", pflag.ContinueOnError)
-	flags.BoolVarP(&opts.longFormat, "long", "l", false, "uses the long listing format")
-	flags.BoolVarP(&opts.longFormat, "all", "a", false, "show hidden files")
-	flags.BoolVarP(&opts.longFormat, "reverse", "r", false, "reverses the order of files")
-	flags.StringVarP(&opts.sortBy, "sort", "s", "name", "sorts by: name, size, createdDate")
-	flags.StringVarP(&opts.tags, "tag", "t", "", "filter files by tags")
+	flags.BoolVarP(&opts.LongFormat, "long", "l", false, "uses the long listing format")
+	flags.BoolVarP(&opts.LongFormat, "all", "a", false, "show hidden files")
+	flags.BoolVarP(&opts.LongFormat, "reverse", "r", false, "reverses the order of files")
+	flags.StringVarP(&opts.SortBy, "sort", "s", "name", "sorts by: name, size, createdDate")
+	flags.StringVarP(&opts.Filter, "tag", "t", "", "filter files by tags or extension")
 
 	return common.Command{
 		Name:        "ls",
@@ -43,42 +46,45 @@ func HandleLsCommandTags() common.Command {
 
 func executeLsCommand(opts *LsOptions) func(args []string) error {
 	return func(args []string) error {
-		// current_working_dir, err := os.Getwd()
+
+		logger.Debug("LS command executed with options", 
+            "LongFormat", opts.LongFormat,
+            "ShowHidden", opts.ShowHidden,
+            "Reverse", opts.Reverse,
+            "SortBy", opts.SortBy,
+            "Filter", opts.Filter)
+        logger.Debug("Arguments passed", "args", args)
+		
 		currentPath := "."
 		if len(args) > 0 {
 			currentPath = args[0]
 		}
+		
+		fmt.Println(currentPath, "the second part")
+
 
 		logger.Info("listing directory contents", "dir", currentPath)
 
-		files, err := sortDirectory(currentPath, opts)
+		files, err := getFilteredFiles(currentPath, opts)
 		if err != nil {
 			logger.Error("failed to read the directory", "dir", currentPath, "error", err)
 			return fmt.Errorf("failed to read the directory %s: %w", currentPath, err)
 		}
 
-		if opts.tags != "" {
-			files, err := filterFilesByTags(files, opts.tags)
-			if err != nil{
-				logger.Debug("failed to get file tags for some unknown reason %v\n: %w\n", len(files), err)
-				return err
-			}
-		}
-
 		printOpts := output.PrintOptions{
-			LongFormat:  opts.longFormat,
-			ShowHidden:  opts.showHidden,
+			LongFormat:  opts.LongFormat,
+			ShowHidden:  opts.ShowHidden,
 			ShouldColor: true,
 			Columns:     output.GetDefaultColumns(),
 		}
 		output.PrintFileInfo(os.Stdout, files, printOpts)
-		logger.Info("successfully listed directory contents", "dir", currentPath, "fileCount", len(files))
+		// logger.Info("successfully listed directory contents", "dir", currentPath, "fileCount", len(files))
 		return nil
 	}
 
 }
 
-func sortDirectory(path string, opts *LsOptions) ([]fs.DirEntry, error) {
+func SortDirectory_(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 	entries, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -87,7 +93,7 @@ func sortDirectory(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 	var files []fs.DirEntry
 
 	for _, entry := range entries {
-		if !opts.showHidden && strings.HasPrefix(entry.Name(), ".") {
+		if !opts.ShowHidden && strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		files = append(files, entry)
@@ -97,7 +103,7 @@ func sortDirectory(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 	sort.Slice(files, func(first, second int) bool {
 		less := false
 
-		switch opts.sortBy {
+		switch opts.SortBy {
 		case "size":
 			firstInfo, _ := files[first].Info()
 			secondInfo, _ := files[second].Info()
@@ -110,7 +116,7 @@ func sortDirectory(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 			less = files[first].Name() < files[second].Name()
 		}
 
-		if opts.reverse {
+		if opts.Reverse {
 			return !less
 		}
 		return less
@@ -120,7 +126,7 @@ func sortDirectory(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 
 }
 
-func filterFilesByTags(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) {
+func FilterFilesByTags_(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) {
 	var filtered []fs.DirEntry
 	for _, file := range files {
 		tags, err := GetFileTags(file.Name())
@@ -137,4 +143,77 @@ func filterFilesByTags(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) {
 		fmt.Println(file)
 	}
 	return filtered, nil
+}
+
+
+func getFilteredFiles(path string, opts *LsOptions) ([]fs.DirEntry, error) {
+	files, err := os.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+	
+	var filteredFiles []fs.DirEntry
+	for _, file := range files {
+		if !opts.ShowHidden && strings.HasPrefix(file.Name(), ".") {
+			continue
+		}
+		
+		if opts.Filter != "" {
+			if strings.HasPrefix(opts.Filter, ".") {
+				if filepath.Ext(file.Name()) != opts.Filter {
+					continue
+				}
+				} else {
+					tags, err := GetFileTags(filepath.Join(path, file.Name()))
+					if err != nil {
+						logger.Warn("failed to get file tags", "file", file.Name(), "error", err)
+						continue
+					}
+
+				if !doesFileContainsExt(tags, opts.Filter) {
+					continue
+				}
+			}
+		}
+		filteredFiles = append(filteredFiles, file)
+	}
+
+	if opts.SortBy != ""{
+		sort.Slice(filteredFiles, func(i, j int) bool {
+			less := false
+			var iData fs.FileInfo
+			var jData fs.FileInfo
+
+			switch opts.SortBy {
+			case Sort_size:
+				iData, _ = filteredFiles[i].Info()
+				jData, _ = filteredFiles[j].Info()
+				less = iData.Size() < jData.Size()
+			case Sort_CreatedDate:
+				iData, _ = filteredFiles[i].Info()
+				jData, _ = filteredFiles[j].Info()
+				less = iData.ModTime().Before(jData.ModTime())
+			default:
+				less = filteredFiles[i].Name() < filteredFiles[j].Name()
+			}
+
+			if opts.Reverse {
+				return !less
+			}
+			return less
+		})
+	}
+
+	
+	return filteredFiles, nil
+	
+}
+
+func doesFileContainsExt(ext []string, item string) bool {
+	for _, word := range ext {
+		if word == item {
+			return true
+		}
+	}
+	return false
 }
