@@ -1,13 +1,12 @@
 package main
 
 import (
-	// "flag"
 	"fmt"
 	"log"
 	"os"
-	
-	"github.com/The-True-Hooha/NimbleFiles/internal/cmd"
-	"github.com/The-True-Hooha/NimbleFiles/internal/config"
+
+	"github.com/The-True-Hooha/Bolt/internal/cmd"
+	"github.com/The-True-Hooha/Bolt/internal/config"
 )
 
 var (
@@ -16,26 +15,10 @@ var (
 )
 
 func init() {
-	var err error
-
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	// get the current working directory
-	CurrentPath, err = os.Getwd()
-	if err != nil {
-		log.Fatalf("failed to get the current working directory: %v\n", err)
-	}
-
-	appConfig, err = config.Load()
-	if err != nil {
-		log.Printf("failed to load the config from system source: %v\n", err)
-		appConfig = config.DefaultDirectory()
-	}
-
-	checkAppDirectoriesExist()
+	cmd.LoadInit()
 }
 
-func checkAppDirectoriesExist() {
+func CheckAppDirectoriesExist() {
 	dir := []string{
 		appConfig.CacheDir,
 		appConfig.ConfigDir,
@@ -51,22 +34,10 @@ func checkAppDirectoriesExist() {
 }
 
 func main() {
-
 	command := cmd.InitCommands()
-	// flag.Parse()
-
-	// if flag.NArg() == 0 {
-	// 	fmt.Println("welcome, see the available commands")
-	// 	for _, cmd := range command.DisplayCommands() {
-	// 		fmt.Printf("  %s: %s\n", cmd.Name, cmd.Description)
-	// 	}
-	// 	return
-	// }
-	// name, args := cmd.ParseCommand(flag.Arg(0))
-	if err := command.Execute(); err != nil{
+	if err := command.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	
 
 }

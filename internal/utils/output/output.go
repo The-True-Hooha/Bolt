@@ -5,15 +5,13 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"strings"
-	"text/tabwriter"
-	"time"
 
+	"github.com/The-True-Hooha/Bolt/internal/utils/logger"
 	"github.com/fatih/color"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/logger"
 )
 
 type ColumnStructure struct {
@@ -39,37 +37,46 @@ func PrintFileInfo(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
 }
 
 func printLongFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 
-	headers := make([]string, len(opts.Columns))
+	var lines []string
+
+	headerParts := make([]string, len(opts.Columns))
 	for i, col := range opts.Columns {
-		headers[i] = col.Header
+		if col.Width > 0 {
+			headerParts[i] = fmt.Sprintf(col.Format, col.Header)
+		} else {
+			headerParts[i] = col.Header
+		}
 	}
-	fmt.Println(tw, strings.Join(headers, "\t"))
+	lines = append(lines, strings.Join(headerParts, " "))
 
 	for _, file := range files {
 		if !opts.ShowHidden && strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
-
 		info, err := file.Info()
 		if err != nil {
 			logger.Warn("failed to get the file info", file.Name(), "err", err)
 			continue
 		}
 
-		values := make([]string, len(opts.Columns))
+		parts := make([]string, len(opts.Columns))
 		for i, col := range opts.Columns {
-			values[i] = col.Value(info)
+			value := col.Value(info)
+			if col.Width > 0 {
+				parts[i] = fmt.Sprintf(col.Format, value)
+			} else {
+				parts[i] = value
+			}
 		}
 
 		if opts.ShouldColor {
-			values[len(values)-1] = getColoredFileNames(file)
+			parts[len(parts)-1] = getColoredFileNames(file)
 		}
 
-		fmt.Fprintf(tw, strings.Join(values, "\t")+"\n")
+		lines = append(lines, strings.Join(parts, " "))
 	}
-	tw.Flush()
+	fmt.Fprintln(w, strings.Join(lines, "\n"))
 }
 
 func printShortFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
@@ -83,7 +90,6 @@ func printShortFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
 		}
 		fmt.Fprintln(w, name)
 	}
-
 }
 
 func getColoredFileNames(file fs.DirEntry) string {
@@ -93,16 +99,15 @@ func getColoredFileNames(file fs.DirEntry) string {
 		return name
 	}
 	if file.IsDir() {
-		name = color.BlueString(name)
+		return color.BlueString(name)
 	} else if file.Type()&fs.ModeSymlink != 0 {
 		name = color.CyanString(name)
 		if pathDestination, err := os.Readlink(filepath.Join(".", name)); err == nil {
-			return name + " -> " + pathDestination
+			return fmt.Sprintf("%s -> %s", name, color.MagentaString(pathDestination))
 		}
 		return name
 	} else if fileIsExecutable(info) {
 		return color.GreenString(name)
-
 	}
 	return name
 }
@@ -116,12 +121,48 @@ func fileIsExecutable(info fs.FileInfo) bool {
 
 func GetDefaultColumns() []ColumnStructure {
 	return []ColumnStructure{
-		{Header: "Mode", Width: 10, Format: "%-10s", Value: func(info fs.FileInfo) string { return info.Mode().String() }},
-		{Header: "Links", Width: 5, Format: "%5s", Value: func(info fs.FileInfo) string { return "1" }},
-		{Header: "Owner", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Geteuid()) }},
-		{Header: "Group", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Getegid()) }},
-		{Header: "Size", Width: 8, Format: "%8d", Value: func(info fs.FileInfo) string { return strconv.FormatInt(info.Size(), 10) }},
-		{Header: "Modified", Width: 20, Format: "%-20s", Value: func(info fs.FileInfo) string { return info.ModTime().Format(time.RFC3339) }},
+		{Header: "Permissions", Width: 11, Format: "%-11s", Value: func(info fs.FileInfo) string { return info.Mode().String() }},
+		{Header: "Owner", Width: 8, Format: "%-8s", Value: getOwnerName},
+		{Header: "Group", Width: 8, Format: "%-8s", Value: getGroupName},
+		{Header: "Size", Width: 9, Format: "%9s", Value: func(info fs.FileInfo) string { return humanizeSize(info.Size()) }},
+		{Header: "Modified", Width: 20, Format: "%-20s", Value: func(info fs.FileInfo) string { 
+			return info.ModTime().Format("2006-01-02 15:04:05")
+		}},
 		{Header: "Name", Width: 0, Format: "%s", Value: func(info fs.FileInfo) string { return info.Name() }},
 	}
+}
+
+func getOwnerName(info fs.FileInfo) string {
+	if runtime.GOOS == "windows" {
+		return "user"
+	}
+	uid := info.Sys().(interface{ Uid() uint32 }).Uid()
+	if u, err := user.LookupId(fmt.Sprint(uid)); err == nil {
+		return u.Username
+	}
+	return fmt.Sprint(uid)
+}
+
+func getGroupName(info fs.FileInfo) string {
+	if runtime.GOOS == "windows" {
+		return "user"
+	}
+	gid := info.Sys().(interface{ Gid() uint32 }).Gid()
+	if g, err := user.LookupGroupId(fmt.Sprint(gid)); err == nil {
+		return g.Name
+	}
+	return fmt.Sprint(gid)
+}
+
+func humanizeSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }

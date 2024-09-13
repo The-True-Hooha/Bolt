@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	
 )
 
 type Config struct {
@@ -12,15 +13,15 @@ type Config struct {
 	DataDir   string `json:"data_dir"`
 }
 
-func Load() (*Config, error){
+func Load() (*Config, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
-	configPath := filepath.Join(homeDir, ".nimblefiles", "config.json")
+	configPath := filepath.Join(homeDir, ".bolt", "config.json")
 	file, err := os.Open(configPath)
 	if err != nil {
-		if os.IsNotExist(err){
+		if os.IsNotExist(err) {
 			return DefaultDirectory(), nil
 		}
 		return nil, err
@@ -28,20 +29,19 @@ func Load() (*Config, error){
 	defer file.Close()
 
 	var config Config
-	if err := json.NewDecoder(file).Decode(&config);
-	err != nil {
+	if err := json.NewDecoder(file).Decode(&config); err != nil {
 		return nil, err
 	}
 	return &config, nil
 }
 
 
-func DefaultDirectory() *Config{
-	homeDir, _ :=os.UserHomeDir()
+func DefaultDirectory() *Config {
+	homeDir, _ := os.UserHomeDir()
 	return &Config{
-		CacheDir: filepath.Join(homeDir, ".cache", "nimblefiles"),
-		ConfigDir: filepath.Join(homeDir, ".config", "nimblefiles"),
-		DataDir: filepath.Join(homeDir, ".local", "share", "nimblefiles"),
+		CacheDir:  filepath.Join(homeDir, ".cache", "bolt"),
+		ConfigDir: filepath.Join(homeDir, ".config", "bolt"),
+		DataDir:   filepath.Join(homeDir, ".local", "share", "bolt"),
 	}
 
 }
