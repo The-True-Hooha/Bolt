@@ -13,7 +13,7 @@ func DoSomething() {
 	fmt.Println("hello")
 }
 
-var tagFile = filepath.Join(os.Getenv("HOME"), ".nimblefiles_tags.json")
+var tagFile = filepath.Join(os.Getenv("HOME"), ".bolt_tags.json")
 
 type FileTags map[string][]string
 

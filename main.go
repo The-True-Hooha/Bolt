@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
-	
-	"github.com/The-True-Hooha/NimbleFiles/internal/cmd"
-	"github.com/The-True-Hooha/NimbleFiles/internal/config"
+
+	"github.com/The-True-Hooha/Bolt/internal/cmd"
+	"github.com/The-True-Hooha/Bolt/internal/config"
 )
 
 var (
@@ -52,9 +52,9 @@ func checkAppDirectoriesExist() {
 
 func main() {
 	command := cmd.InitCommands()
-	if err := command.Execute(); err != nil{
+	if err := command.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	
+
 }

@@ -12,8 +12,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"github.com/The-True-Hooha/Bolt/internal/utils/logger"
 	"github.com/fatih/color"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/logger"
 )
 
 type ColumnStructure struct {

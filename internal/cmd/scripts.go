@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/The-True-Hooha/NimbleFiles/internal/common"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/ls"
+	"github.com/The-True-Hooha/Bolt/internal/common"
+	lscmd "github.com/The-True-Hooha/Bolt/internal/utils/ls"
 )
 
 var longStory = `
@@ -24,7 +24,7 @@ that enhances productivity and streamlines workflows.
 var rootCmd = &cobra.Command{
 	Use:   "bolt",
 	Short: "A blazingly fast modern terminal based file manager written in Go",
-	Long: 	longStory,
+	Long:  longStory,
 }
 
 var (
@@ -44,7 +44,7 @@ func InitConfig() {
 		}
 
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".nimblefiles")
+		viper.SetConfigName(".bolt")
 	}
 
 	viper.AutomaticEnv()

@@ -8,16 +8,18 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/The-True-Hooha/NimbleFiles/internal/common"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/logger"
-	"github.com/The-True-Hooha/NimbleFiles/internal/utils/output"
+	"github.com/The-True-Hooha/Bolt/internal/common"
+	"github.com/The-True-Hooha/Bolt/internal/utils/logger"
+	"github.com/The-True-Hooha/Bolt/internal/utils/output"
 	"github.com/spf13/pflag"
 )
+
 const (
-    Sort_Name   = "name"
-    Sort_size = "size"
-    Sort_CreatedDate  = "createdDate"
+	Sort_Name        = "name"
+	Sort_size        = "size"
+	Sort_CreatedDate = "createdDate"
 )
+
 type LsOptions struct {
 	LongFormat bool
 	ShowHidden bool
@@ -47,21 +49,20 @@ func HandleLsCommandTags() common.Command {
 func executeLsCommand(opts *LsOptions) func(args []string) error {
 	return func(args []string) error {
 
-		logger.Debug("LS command executed with options", 
-            "LongFormat", opts.LongFormat,
-            "ShowHidden", opts.ShowHidden,
-            "Reverse", opts.Reverse,
-            "SortBy", opts.SortBy,
-            "Filter", opts.Filter)
-        logger.Debug("Arguments passed", "args", args)
-		
+		logger.Debug("LS command executed with options",
+			"LongFormat", opts.LongFormat,
+			"ShowHidden", opts.ShowHidden,
+			"Reverse", opts.Reverse,
+			"SortBy", opts.SortBy,
+			"Filter", opts.Filter)
+		logger.Debug("Arguments passed", "args", args)
+
 		currentPath := "."
 		if len(args) > 0 {
 			currentPath = args[0]
 		}
-		
-		fmt.Println(currentPath, "the second part")
 
+		fmt.Println(currentPath, "the second part")
 
 		logger.Info("listing directory contents", "dir", currentPath)
 
@@ -145,30 +146,29 @@ func FilterFilesByTags_(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) 
 	return filtered, nil
 }
 
-
 func getFilteredFiles(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 	files, err := os.ReadDir(path)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var filteredFiles []fs.DirEntry
 	for _, file := range files {
 		if !opts.ShowHidden && strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
-		
+
 		if opts.Filter != "" {
 			if strings.HasPrefix(opts.Filter, ".") {
 				if filepath.Ext(file.Name()) != opts.Filter {
 					continue
 				}
-				} else {
-					tags, err := GetFileTags(filepath.Join(path, file.Name()))
-					if err != nil {
-						logger.Warn("failed to get file tags", "file", file.Name(), "error", err)
-						continue
-					}
+			} else {
+				tags, err := GetFileTags(filepath.Join(path, file.Name()))
+				if err != nil {
+					logger.Warn("failed to get file tags", "file", file.Name(), "error", err)
+					continue
+				}
 
 				if !doesFileContainsExt(tags, opts.Filter) {
 					continue
@@ -178,7 +178,7 @@ func getFilteredFiles(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 		filteredFiles = append(filteredFiles, file)
 	}
 
-	if opts.SortBy != ""{
+	if opts.SortBy != "" {
 		sort.Slice(filteredFiles, func(i, j int) bool {
 			less := false
 			var iData fs.FileInfo
@@ -204,9 +204,8 @@ func getFilteredFiles(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 		})
 	}
 
-	
 	return filteredFiles, nil
-	
+
 }
 
 func doesFileContainsExt(ext []string, item string) bool {
