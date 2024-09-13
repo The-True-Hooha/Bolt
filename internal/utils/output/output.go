@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"text/tabwriter"
-	"time"
+	// "time"
 
 	"github.com/The-True-Hooha/Bolt/internal/utils/logger"
 	"github.com/fatih/color"
@@ -39,14 +39,16 @@ func PrintFileInfo(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
 }
 
 func printLongFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	tw := tabwriter.NewWriter(w, 0, 0, 1, ' ', 0)
 
+	// Print headers
 	headers := make([]string, len(opts.Columns))
 	for i, col := range opts.Columns {
-		headers[i] = col.Header
+		headers[i] = color.New(color.Bold).Sprintf(col.Format, col.Header)
 	}
-	fmt.Println(tw, strings.Join(headers, "\t"))
+	fmt.Fprintln(tw, strings.Join(headers, "\t"))
 
+	// Print file information
 	for _, file := range files {
 		if !opts.ShowHidden && strings.HasPrefix(file.Name(), ".") {
 			continue
@@ -60,15 +62,16 @@ func printLongFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
 
 		values := make([]string, len(opts.Columns))
 		for i, col := range opts.Columns {
-			values[i] = col.Value(info)
+			value := col.Value(info)
+			if i == len(opts.Columns)-1 && opts.ShouldColor { // Name column
+				value = getColoredFileNames(file)
+			}
+			values[i] = fmt.Sprintf(col.Format, value)
 		}
 
-		if opts.ShouldColor {
-			values[len(values)-1] = getColoredFileNames(file)
-		}
-
-		fmt.Fprintf(tw, strings.Join(values, "\t")+"\n")
+		fmt.Fprintln(tw, strings.Join(values, "\t"))
 	}
+
 	tw.Flush()
 }
 
@@ -83,7 +86,6 @@ func printShortFormat(w io.Writer, files []fs.DirEntry, opts PrintOptions) {
 		}
 		fmt.Fprintln(w, name)
 	}
-
 }
 
 func getColoredFileNames(file fs.DirEntry) string {
@@ -93,16 +95,15 @@ func getColoredFileNames(file fs.DirEntry) string {
 		return name
 	}
 	if file.IsDir() {
-		name = color.BlueString(name)
+		return color.BlueString(name)
 	} else if file.Type()&fs.ModeSymlink != 0 {
 		name = color.CyanString(name)
 		if pathDestination, err := os.Readlink(filepath.Join(".", name)); err == nil {
-			return name + " -> " + pathDestination
+			return fmt.Sprintf("%s -> %s", name, color.MagentaString(pathDestination))
 		}
 		return name
 	} else if fileIsExecutable(info) {
 		return color.GreenString(name)
-
 	}
 	return name
 }
@@ -120,8 +121,26 @@ func GetDefaultColumns() []ColumnStructure {
 		{Header: "Links", Width: 5, Format: "%5s", Value: func(info fs.FileInfo) string { return "1" }},
 		{Header: "Owner", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Geteuid()) }},
 		{Header: "Group", Width: 8, Format: "%-8s", Value: func(info fs.FileInfo) string { return strconv.Itoa(os.Getegid()) }},
-		{Header: "Size", Width: 8, Format: "%8d", Value: func(info fs.FileInfo) string { return strconv.FormatInt(info.Size(), 10) }},
-		{Header: "Modified", Width: 20, Format: "%-20s", Value: func(info fs.FileInfo) string { return info.ModTime().Format(time.RFC3339) }},
+		{Header: "Size", Width: 10, Format: "%10s", Value: func(info fs.FileInfo) string { 
+			return humanizeSize(info.Size()) 
+		}},
+		{Header: "Modified", Width: 12, Format: "%-12s", Value: func(info fs.FileInfo) string { 
+			return info.ModTime().Format("Jan _2 15:04") 
+		}},
 		{Header: "Name", Width: 0, Format: "%s", Value: func(info fs.FileInfo) string { return info.Name() }},
 	}
+}
+
+// humanizeSize converts a file size in bytes to a human-readable string
+func humanizeSize(size int64) string {
+	const unit = 1024
+	if size < unit {
+		return fmt.Sprintf("%d B", size)
+	}
+	div, exp := int64(unit), 0
+	for n := size / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(size)/float64(div), "KMGTPE"[exp])
 }

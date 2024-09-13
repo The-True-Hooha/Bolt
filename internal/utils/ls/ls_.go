@@ -48,23 +48,10 @@ func HandleLsCommandTags() common.Command {
 
 func executeLsCommand(opts *LsOptions) func(args []string) error {
 	return func(args []string) error {
-
-		logger.Debug("LS command executed with options",
-			"LongFormat", opts.LongFormat,
-			"ShowAll", opts.ShowAll,
-			"Reverse", opts.Reverse,
-			"SortBy", opts.SortBy,
-			"Filter", opts.Filter)
-		logger.Debug("Arguments passed", "args", args)
-
 		currentPath := "."
 		if len(args) > 0 {
 			currentPath = args[0]
 		}
-
-		fmt.Println(currentPath, "the second part")
-
-		logger.Info("listing directory contents", "dir", currentPath)
 
 		files, err := getFilteredFiles(currentPath, opts)
 		if err != nil {
@@ -79,7 +66,6 @@ func executeLsCommand(opts *LsOptions) func(args []string) error {
 			Columns:     output.GetDefaultColumns(),
 		}
 		output.PrintFileInfo(os.Stdout, files, printOpts)
-		// logger.Info("successfully listed directory contents", "dir", currentPath, "fileCount", len(files))
 		return nil
 	}
 
