@@ -2,22 +2,59 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
+	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/The-True-Hooha/NimbleFiles/internal/common"
 	"github.com/The-True-Hooha/NimbleFiles/internal/utils/ls"
 )
 
+var longStory = `
+A blazingly fast solution that ensures you can navigate, manage, 
+and manipulate your files with unparalleled efficiency.
+Whether you are a seasoned developer or a casual user, 
+this terminal-based file manager offers a seamless experience
+that enhances productivity and streamlines workflows. 
+`
+
 var rootCmd = &cobra.Command{
-	Use:   "NimbleFiles",
+	Use:   "bolt",
 	Short: "A blazingly fast modern terminal based file manager written in Go",
-	Long:  `a blazingly fast solution that ensures you can navigate, manage, 
-			and manipulate your files with unparalleled efficiency.
-			Whether you are a seasoned developer or a casual user, 
-			this terminal-based file manager offers a seamless experience
-			 that enhances productivity and streamlines workflows. `,
+	Long: 	longStory,
+}
+
+var (
+	cfgFile     string
+	projectRoot string
+	userLicense string
+)
+
+func InitConfig() {
+	if cfgFile != "" {
+		viper.SetConfigFile(cfgFile)
+	} else {
+		home, err := homedir.Dir()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		viper.AddConfigPath(home)
+		viper.SetConfigName(".nimblefiles")
+	}
+
+	viper.AutomaticEnv()
+	if err := viper.ReadInConfig(); err == nil {
+		fmt.Println("using config file:", viper.ConfigFileUsed())
+	}
+}
+
+func GetConfig() map[string]interface{} {
+	return viper.AllSettings()
 }
 
 type CommandRecord struct {

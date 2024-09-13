@@ -32,6 +32,7 @@ func init() {
 	}
 
 	checkAppDirectoriesExist()
+	// fmt.Println("does this line even work??")
 }
 
 func checkAppDirectoriesExist() {
