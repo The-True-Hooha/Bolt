@@ -62,8 +62,8 @@ func LoadInit() {
 	cobra.OnInitialize(initConfig)
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (set default $HOME/.bolt.yaml)")
-	rootCmd.PersistentFlags().StringP("author", "a", "David Ogar", fmt.Sprintf("©%d David Ogar", time.Now().Year()))
-	rootCmd.PersistentFlags().StringVarP(&userLicense, "license", "l", "", "Name of license for the project")
+	rootCmd.PersistentFlags().StringP("author", "", "David Ogar", fmt.Sprintf("©%d David Ogar", time.Now().Year()))
+	rootCmd.PersistentFlags().StringVarP(&userLicense, "license", "", "", "Name of license for the project")
 	rootCmd.Version = version
 	rootCmd.SetVersionTemplate("Bolt version {{.Version}}\n")
 	rootCmd.SuggestionsMinimumDistance = 1

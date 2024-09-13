@@ -22,9 +22,9 @@ const (
 
 type LsOptions struct {
 	LongFormat bool
-	ShowHidden bool
-	SortBy     string
+	ShowAll    bool
 	Reverse    bool
+	SortBy     string
 	Filter     string
 }
 
@@ -33,8 +33,8 @@ func HandleLsCommandTags() common.Command {
 
 	flags := pflag.NewFlagSet("ls", pflag.ContinueOnError)
 	flags.BoolVarP(&opts.LongFormat, "long", "l", false, "uses the long listing format")
-	flags.BoolVarP(&opts.LongFormat, "all", "a", false, "show hidden files")
-	flags.BoolVarP(&opts.LongFormat, "reverse", "r", false, "reverses the order of files")
+	flags.BoolVarP(&opts.ShowAll, "all", "a", false, "show hidden files")
+	flags.BoolVarP(&opts.Reverse, "reverse", "r", false, "reverses the order of files")
 	flags.StringVarP(&opts.SortBy, "sort", "s", "name", "sorts by: name, size, createdDate")
 	flags.StringVarP(&opts.Filter, "tag", "t", "", "filter files by tags or extension")
 
@@ -51,7 +51,7 @@ func executeLsCommand(opts *LsOptions) func(args []string) error {
 
 		logger.Debug("LS command executed with options",
 			"LongFormat", opts.LongFormat,
-			"ShowHidden", opts.ShowHidden,
+			"ShowAll", opts.ShowAll,
 			"Reverse", opts.Reverse,
 			"SortBy", opts.SortBy,
 			"Filter", opts.Filter)
@@ -74,7 +74,7 @@ func executeLsCommand(opts *LsOptions) func(args []string) error {
 
 		printOpts := output.PrintOptions{
 			LongFormat:  opts.LongFormat,
-			ShowHidden:  opts.ShowHidden,
+			ShowHidden:  opts.ShowAll,
 			ShouldColor: true,
 			Columns:     output.GetDefaultColumns(),
 		}
@@ -94,7 +94,7 @@ func SortDirectory_(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 	var files []fs.DirEntry
 
 	for _, entry := range entries {
-		if !opts.ShowHidden && strings.HasPrefix(entry.Name(), ".") {
+		if !opts.ShowAll && strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		files = append(files, entry)
@@ -154,7 +154,7 @@ func getFilteredFiles(path string, opts *LsOptions) ([]fs.DirEntry, error) {
 
 	var filteredFiles []fs.DirEntry
 	for _, file := range files {
-		if !opts.ShowHidden && strings.HasPrefix(file.Name(), ".") {
+		if !opts.ShowAll && strings.HasPrefix(file.Name(), ".") {
 			continue
 		}
 
