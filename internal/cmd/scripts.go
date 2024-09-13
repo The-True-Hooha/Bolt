@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -29,11 +30,11 @@ var rootCmd = &cobra.Command{
 
 var (
 	cfgFile     string
-	projectRoot string
 	userLicense string
+	version = "0.1.0"
 )
 
-func InitConfig() {
+func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
 	} else {
@@ -53,8 +54,26 @@ func InitConfig() {
 	}
 }
 
-func GetConfig() map[string]interface{} {
+func getConfig() map[string]interface{} {
 	return viper.AllSettings()
+}
+
+func LoadInit() {
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (set default $HOME/.bolt.yaml)")
+	rootCmd.PersistentFlags().StringP("author", "a", "David Ogar", fmt.Sprintf("©%d David Ogar", time.Now().Year()))
+	rootCmd.PersistentFlags().StringVarP(&userLicense, "license", "l", "", "Name of license for the project")
+	rootCmd.Version = version
+	rootCmd.SetVersionTemplate("Bolt version {{.Version}}\n")
+	rootCmd.SuggestionsMinimumDistance = 1
+
+	viper.BindPFlag("author", rootCmd.PersistentFlags().Lookup("author"))
+	viper.BindPFlag("license", rootCmd.PersistentFlags().Lookup("license"))
+
+	viper.SetDefault("author", fmt.Sprintf("©%d David Ogar <owogogahhero@outlook.com>", time.Now().Year()))
+	viper.SetDefault("license", "MIT")
+
 }
 
 type CommandRecord struct {
@@ -102,7 +121,18 @@ func InitCommands() *CommandRecord {
 	ls := lscmd.HandleLsCommandTags()
 	cr.AddNew(ls)
 
-	// TODO: move the below commands to their files
+	cr.AddNew(common.Command{ // prints the current device configuration
+		Name: "config",
+		Description: "display your current configuration",
+		Execute: func(args []string) error {
+			boltConfig := getConfig()
+			for i, v := range boltConfig{
+				fmt.Printf("%s: %v\n", i, v)
+			}
+			return nil
+		},
+	})
+
 	cr.AddNew(common.Command{
 		Name:        "cd",
 		Description: "change the current directory",

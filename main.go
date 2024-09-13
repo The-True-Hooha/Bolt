@@ -15,27 +15,10 @@ var (
 )
 
 func init() {
-	var err error
-
-	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-
-	// get the current working directory
-	CurrentPath, err = os.Getwd()
-	if err != nil {
-		log.Fatalf("failed to get the current working directory: %v\n", err)
-	}
-
-	appConfig, err = config.Load()
-	if err != nil {
-		log.Printf("failed to load the config from system source: %v\n", err)
-		appConfig = config.DefaultDirectory()
-	}
-
-	checkAppDirectoriesExist()
-	// fmt.Println("does this line even work??")
+	cmd.LoadInit()
 }
 
-func checkAppDirectoriesExist() {
+func CheckAppDirectoriesExist() {
 	dir := []string{
 		appConfig.CacheDir,
 		appConfig.ConfigDir,

@@ -2,16 +2,10 @@ package lscmd
 
 import (
     "encoding/json"
-    "fmt"
     "os"
     "path/filepath"
 
 )
-
-
-func DoSomething() {
-	fmt.Println("hello")
-}
 
 var tagFile = filepath.Join(os.Getenv("HOME"), ".bolt_tags.json")
 

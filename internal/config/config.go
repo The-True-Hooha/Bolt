@@ -7,8 +7,6 @@ import (
 	
 )
 
-
-
 type Config struct {
 	CacheDir  string `json:"cache_dir"`
 	ConfigDir string `json:"config_dir"`
