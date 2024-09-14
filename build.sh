@@ -1,7 +1,7 @@
 #!/bin/bash
 
 APP_NAME="Bolt"
-VERSION="0.1.0"  # Add a version number if you haven't defined it elsewhere
+VERSION="0.1.0"
 
 PLATFORMS=(
     "darwin/amd64" 
