@@ -10,6 +10,7 @@ RELEASE COMING SOON
 - [x] implement commands
 - [ ] create a distributable for the cli
 - [ ] create action or something to make release anytime you build
+- [ ] create build repository for homebrew and tests chocolatey locally
 - [ ] create ui
 - [ ] get command working for the terminal
 - [ ] fast file indexing and searching

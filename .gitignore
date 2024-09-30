@@ -37,3 +37,6 @@ config.local.yaml
 # bundle/
 
 Screenshot.png
+
+# choco distribution
+BoltPackage
