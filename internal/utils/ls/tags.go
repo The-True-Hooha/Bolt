@@ -1,18 +1,23 @@
 package lscmd
 
 import (
-    "encoding/json"
-    "os"
-    "path/filepath"
-
+	"encoding/json"
+	"os"
+	"path/filepath"
 )
 
-var tagFile = filepath.Join(os.Getenv("HOME"), ".bolt_tags.json")
+func getTagFile() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		home = "."
+	}
+	return filepath.Join(home, ".bolt_tags.json")
+}
 
 type FileTags map[string][]string
 
-func loadSystemTags()(FileTags, error){
-	data, err := os.ReadFile(tagFile)
+func loadSystemTags() (FileTags, error) {
+	data, err := os.ReadFile(getTagFile())
 	if os.IsNotExist(err){
 		return make(FileTags), nil
 	}else if err != nil {
@@ -47,7 +52,7 @@ func saveSystemTags(tags FileTags) error {
 	if err != nil{
 		return err
 	}
-	return os.WriteFile(tagFile, data, 0644)
+	return os.WriteFile(getTagFile(), data, 0644)
 }
 
 func RemoveFileTags(filename string, tag string) error{

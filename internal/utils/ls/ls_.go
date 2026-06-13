@@ -71,54 +71,12 @@ func executeLsCommand(opts *LsOptions) func(args []string) error {
 
 }
 
-func SortDirectory_(path string, opts *LsOptions) ([]fs.DirEntry, error) {
-	entries, err := os.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var files []fs.DirEntry
-
-	for _, entry := range entries {
-		if !opts.ShowAll && strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-		files = append(files, entry)
-
-	}
-
-	sort.Slice(files, func(first, second int) bool {
-		less := false
-
-		switch opts.SortBy {
-		case "size":
-			firstInfo, _ := files[first].Info()
-			secondInfo, _ := files[second].Info()
-			less = firstInfo.Size() < secondInfo.Size()
-		case "createdDate":
-			firstInfo, _ := files[first].Info()
-			secondInfo, _ := files[second].Info()
-			less = firstInfo.ModTime().Before(secondInfo.ModTime())
-		default:
-			less = files[first].Name() < files[second].Name()
-		}
-
-		if opts.Reverse {
-			return !less
-		}
-		return less
-	})
-
-	return files, nil
-
-}
-
 func FilterFilesByTags_(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) {
 	var filtered []fs.DirEntry
 	for _, file := range files {
 		tags, err := GetFileTags(file.Name())
 		if err != nil {
-			logger.Debug("failed to get tag for this file %s: %w", file.Name(), err)
+			logger.Debug("failed to get tag for file", "file", file.Name(), "error", err)
 			return nil, err
 		}
 		for _, fileTag := range tags {
@@ -127,7 +85,6 @@ func FilterFilesByTags_(files []fs.DirEntry, tag string) ([]fs.DirEntry, error) 
 				break
 			}
 		}
-		fmt.Println(file)
 	}
 	return filtered, nil
 }

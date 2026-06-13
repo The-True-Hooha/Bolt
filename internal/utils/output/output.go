@@ -136,22 +136,36 @@ func getOwnerName(info fs.FileInfo) string {
 	if runtime.GOOS == "windows" {
 		return "user"
 	}
-	uid := info.Sys().(interface{ Uid() uint32 }).Uid()
-	if u, err := user.LookupId(fmt.Sprint(uid)); err == nil {
-		return u.Username
+	type uidGetter interface{ Uid() uint32 }
+	sys := info.Sys()
+	if sys == nil {
+		return "unknown"
 	}
-	return fmt.Sprint(uid)
+	if getter, ok := sys.(uidGetter); ok {
+		if u, err := user.LookupId(fmt.Sprint(getter.Uid())); err == nil {
+			return u.Username
+		}
+		return fmt.Sprint(getter.Uid())
+	}
+	return "unknown"
 }
 
 func getGroupName(info fs.FileInfo) string {
 	if runtime.GOOS == "windows" {
 		return "user"
 	}
-	gid := info.Sys().(interface{ Gid() uint32 }).Gid()
-	if g, err := user.LookupGroupId(fmt.Sprint(gid)); err == nil {
-		return g.Name
+	type gidGetter interface{ Gid() uint32 }
+	sys := info.Sys()
+	if sys == nil {
+		return "unknown"
 	}
-	return fmt.Sprint(gid)
+	if getter, ok := sys.(gidGetter); ok {
+		if g, err := user.LookupGroupId(fmt.Sprint(getter.Gid())); err == nil {
+			return g.Name
+		}
+		return fmt.Sprint(getter.Gid())
+	}
+	return "unknown"
 }
 
 func humanizeSize(size int64) string {
