@@ -12,8 +12,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/The-True-Hooha/Bolt/internal/common"
 	"github.com/The-True-Hooha/Bolt/internal/config"
+	"github.com/The-True-Hooha/Bolt/internal/tui"
 	"github.com/The-True-Hooha/Bolt/internal/utils/fileops"
 	"github.com/The-True-Hooha/Bolt/internal/utils/find"
 	"github.com/The-True-Hooha/Bolt/internal/utils/grep"
@@ -150,6 +153,20 @@ func InitCommands() *CommandRecord {
 				return fmt.Errorf("cd: %s: %w", args[0], err)
 			}
 			return nil
+		},
+	})
+
+	cr.AddNew(common.Command{
+		Name:        "ui",
+		Description: "open the interactive TUI file manager",
+		Execute: func(args []string) error {
+			start := ""
+			if len(args) > 0 {
+				start = args[0]
+			}
+			p := tea.NewProgram(tui.New(start), tea.WithAltScreen())
+			_, err := p.Run()
+			return err
 		},
 	})
 
