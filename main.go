@@ -14,7 +14,7 @@ func init() {
 }
 
 func ensureAppDirectories(cfg *config.Config) {
-	for _, dir := range []string{cfg.CacheDir, cfg.ConfigDir, cfg.DataDir} {
+	for _, dir := range []string{cfg.Core.CacheDir, cfg.Core.ConfigDir, cfg.Core.DataDir} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			log.Printf("failed to create directory %s: %v\n", dir, err)
 		}

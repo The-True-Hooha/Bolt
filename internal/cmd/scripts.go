@@ -6,11 +6,17 @@ import (
 	"strings"
 	"time"
 
+	"os/exec"
+
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	"github.com/The-True-Hooha/Bolt/internal/common"
+	"github.com/The-True-Hooha/Bolt/internal/config"
+	"github.com/The-True-Hooha/Bolt/internal/utils/fileops"
+	"github.com/The-True-Hooha/Bolt/internal/utils/find"
+	"github.com/The-True-Hooha/Bolt/internal/utils/grep"
 	lscmd "github.com/The-True-Hooha/Bolt/internal/utils/ls"
 )
 
@@ -54,7 +60,7 @@ func initConfig() {
 	}
 }
 
-func getConfig() map[string]interface{} {
+func getConfig() map[string]any {
 	return viper.AllSettings()
 }
 
@@ -135,78 +141,49 @@ func InitCommands() *CommandRecord {
 
 	cr.AddNew(common.Command{
 		Name:        "cd",
-		Description: "change the current directory",
+		Description: "change the current working directory",
 		Execute: func(args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("please add a file path or directory you want to switch to")
+				return fmt.Errorf("usage: cd <directory>")
 			}
-			fmt.Printf("change directory %s\n", args[0])
+			if err := os.Chdir(args[0]); err != nil {
+				return fmt.Errorf("cd: %s: %w", args[0], err)
+			}
 			return nil
 		},
 	})
 
-	cr.AddNew(common.Command{
-		Name:        "pwd",
-		Description: "prints the current working directory",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
+	cr.AddNew(fileops.HandlePwdCommand())
+	cr.AddNew(fileops.HandleCpCommand())
+	cr.AddNew(fileops.HandleMvCommand())
+	cr.AddNew(fileops.HandleRmCommand())
+	cr.AddNew(fileops.HandleMkdirCommand())
+	cr.AddNew(fileops.HandleTouchCommand())
+	cr.AddNew(find.HandleFindCommand())
+	cr.AddNew(grep.HandleGrepCommand())
 
-	cr.AddNew(common.Command{
-		Name:        "cp",
-		Description: "copy files and directories",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-
-	cr.AddNew(common.Command{
-		Name:        "mv",
-		Description: "move files or directories",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-	cr.AddNew(common.Command{
-		Name:        "rm",
-		Description: "remove files or directories",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-
-	cr.AddNew(common.Command{
-		Name:        "mkdir",
-		Description: "make directories",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-
-	cr.AddNew(common.Command{
-		Name:        "touch",
-		Description: "create a new empty file",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-
-	cr.AddNew(common.Command{
-		Name:        "find",
-		Description: "search for files in a directory",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
-
-	cr.AddNew(common.Command{
-		Name:        "grep",
-		Description: "search for a pattern within files",
-		Execute: func(args []string) error {
-			return nil
-		},
-	})
+	// Register enabled plugins from config.toml [plugins] section
+	for name, plugin := range config.GetPlugins() {
+		if !plugin.Enabled {
+			continue
+		}
+		name, plugin := name, plugin // capture loop vars
+		desc := plugin.Description
+		if desc == "" {
+			desc = fmt.Sprintf("plugin: %s", name)
+		}
+		cr.AddNew(common.Command{
+			Name:        name,
+			Description: desc,
+			Execute: func(args []string) error {
+				cmd := exec.Command(plugin.Command, args...)
+				cmd.Stdin = os.Stdin
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
+				return cmd.Run()
+			},
+		})
+	}
 
 	return cr
 }
