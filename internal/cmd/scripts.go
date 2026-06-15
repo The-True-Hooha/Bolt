@@ -16,11 +16,17 @@ import (
 
 	"github.com/The-True-Hooha/Bolt/internal/common"
 	"github.com/The-True-Hooha/Bolt/internal/config"
+	"github.com/The-True-Hooha/Bolt/internal/utils/archive"
 	"github.com/The-True-Hooha/Bolt/internal/tui"
+	"github.com/The-True-Hooha/Bolt/internal/utils/bookmarks"
 	"github.com/The-True-Hooha/Bolt/internal/utils/fileops"
 	"github.com/The-True-Hooha/Bolt/internal/utils/find"
 	"github.com/The-True-Hooha/Bolt/internal/utils/grep"
 	lscmd "github.com/The-True-Hooha/Bolt/internal/utils/ls"
+	"github.com/The-True-Hooha/Bolt/internal/utils/preview"
+	"github.com/The-True-Hooha/Bolt/internal/utils/search"
+	"github.com/The-True-Hooha/Bolt/internal/utils/trash"
+	"github.com/The-True-Hooha/Bolt/internal/utils/watch"
 )
 
 var longStory = `
@@ -125,6 +131,12 @@ func (cr *CommandRecord) Execute() error {
 	return rootCmd.Execute()
 }
 
+func (cr *CommandRecord) RunUI() error {
+	p := tea.NewProgram(tui.New(""), tea.WithAltScreen())
+	_, err := p.Run()
+	return err
+}
+
 func InitCommands() *CommandRecord {
 	cr := CommandRegistry()
 	ls := lscmd.HandleLsCommandTags()
@@ -178,6 +190,18 @@ func InitCommands() *CommandRecord {
 	cr.AddNew(fileops.HandleTouchCommand())
 	cr.AddNew(find.HandleFindCommand())
 	cr.AddNew(grep.HandleGrepCommand())
+	cr.AddNew(preview.HandlePreviewCommand())
+	cr.AddNew(trash.HandleTrashCommand())
+	cr.AddNew(trash.HandleTrashListCommand())
+	cr.AddNew(trash.HandleTrashRestoreCommand())
+	cr.AddNew(trash.HandleTrashEmptyCommand())
+	cr.AddNew(bookmarks.HandleBookmarkCommand())
+	cr.AddNew(watch.HandleWatchCommand())
+	cr.AddNew(archive.HandleZipCommand())
+	cr.AddNew(archive.HandleUnzipCommand())
+	cr.AddNew(archive.HandleTarCommand())
+	cr.AddNew(search.HandleSearchCommand())
+	cr.AddNew(search.HandleIndexCommand())
 
 	// Register enabled plugins from config.toml [plugins] section
 	for name, plugin := range config.GetPlugins() {

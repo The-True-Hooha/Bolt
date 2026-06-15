@@ -30,6 +30,16 @@ func main() {
 	ensureAppDirectories(cfg)
 
 	command := cmd.InitCommands()
+
+	// no subcommand = launch TUI directly
+	if len(os.Args) == 1 {
+		if err := command.RunUI(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	if err := command.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
