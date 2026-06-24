@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.os }}/${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            ext: ""
+          - os: linux
+            arch: arm64
+            ext: ""
+          - os: darwin
+            arch: amd64
+            ext: ""
+          - os: darwin
+            arch: arm64
+            ext: ""
+          - os: windows
+            arch: amd64
+            ext: ".exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          OUT="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.ext }}"
+          go build -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${OUT}" .
+          echo "OUT=${OUT}" >> $GITHUB_ENV
+
+      - name: Archive (Unix)
+        if: matrix.ext == ''
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          NAME="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}"
+          cd dist && tar -czf "${NAME}.tar.gz" "${NAME}"
+          echo "ASSET=dist/${NAME}.tar.gz" >> $GITHUB_ENV
+
+      - name: Archive (Windows)
+        if: matrix.ext == '.exe'
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          NAME="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}.exe"
+          cd dist && zip "${NAME%.exe}.zip" "${NAME}"
+          echo "ASSET=dist/bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}.zip" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bolt-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

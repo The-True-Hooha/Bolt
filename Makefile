@@ -28,24 +28,13 @@ test:
 lint:
 	go vet ./...
 
-release: clean
-	$(foreach P,$(PLATFORMS), \
-		$(eval OS   := $(word 1,$(subst /, ,$(P)))) \
-		$(eval ARCH := $(word 2,$(subst /, ,$(P)))) \
-		$(eval EXT  := $(if $(filter windows,$(OS)),.exe,)) \
-		$(eval OUT  := dist/$(BINARY)_$(VERSION)_$(OS)_$(ARCH)$(EXT)) \
-		GOOS=$(OS) GOARCH=$(ARCH) go build $(LDFLAGS) -o $(OUT) . ; \
-	)
-	cd dist && \
-		tar -czf $(BINARY)_$(VERSION)_darwin_amd64.tar.gz  $(BINARY)_$(VERSION)_darwin_amd64  && \
-		tar -czf $(BINARY)_$(VERSION)_darwin_arm64.tar.gz  $(BINARY)_$(VERSION)_darwin_arm64  && \
-		tar -czf $(BINARY)_$(VERSION)_linux_amd64.tar.gz   $(BINARY)_$(VERSION)_linux_amd64   && \
-		tar -czf $(BINARY)_$(VERSION)_linux_arm64.tar.gz   $(BINARY)_$(VERSION)_linux_arm64   && \
-		zip      $(BINARY)_$(VERSION)_windows_amd64.zip    $(BINARY)_$(VERSION)_windows_amd64.exe
-	@echo "release $(VERSION) ready in dist/"
+release:
+	@echo "releases are built via GitHub Actions on git tag push"
+	@echo "  git tag v$(VERSION) && git push origin v$(VERSION)"
 
 clean:
-	rm -rf dist/ $(BINARY) $(BINARY).exe
+	go clean
+	$(if $(filter Windows_NT,$(OS)),powershell -Command "Remove-Item -Recurse -Force -ErrorAction SilentlyContinue dist,$(BINARY).exe",rm -rf dist/ $(BINARY))
 
 help:
 	@echo "usage: make <target>"
