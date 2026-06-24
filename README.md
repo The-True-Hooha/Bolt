@@ -40,23 +40,39 @@ Bolt is a keyboard-driven terminal file manager with a rich interactive TUI, syn
 
 ## Installation
 
-### One-line install (macOS / Linux)
+### macOS / Linux — prebuilt (no Go required)
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/The-True-Hooha/Bolt/master/install.sh | bash
 ```
 
-Installs to `~/.local/bin/bolt` and adds it to your shell profile automatically.
+Downloads latest release binary, installs to `~/.local/bin/bolt`, adds it to your shell profile.
 
-### One-line install (Windows — PowerShell)
+### macOS / Linux — build from source
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/The-True-Hooha/Bolt/master/install.sh | bash -s -- --from-source
+```
+
+Requires Go 1.21+. Clones repo, compiles, and installs.
+
+### Windows — prebuilt (no Go required)
 
 ```powershell
 irm https://raw.githubusercontent.com/The-True-Hooha/Bolt/master/install.ps1 | iex
 ```
 
-Installs to `%APPDATA%\bolt\bin\bolt.exe` and adds it to your **User PATH** — no admin rights needed.
+Downloads latest `.exe`, installs to `%APPDATA%\bolt\bin`, adds it to your **User PATH** — no admin rights needed.
 
-### From source (any platform)
+### Windows — build from source
+
+```powershell
+.\install.ps1 -FromSource
+```
+
+Requires Go 1.21+.
+
+### Manual (any platform)
 
 ```bash
 git clone https://github.com/The-True-Hooha/Bolt
