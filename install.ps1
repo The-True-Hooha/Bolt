@@ -72,9 +72,17 @@ if ($FromSource) {
         Write-Fail "no windows_amd64 asset in release $tag — try -FromSource"
     }
 
-    $url = $asset.browser_download_url
+    $url     = $asset.browser_download_url
+    $zipPath = Join-Path $env:TEMP "bolt-$tag.zip"
     Write-Info "downloading $($asset.name) ($tag)"
-    Invoke-WebRequest -Uri $url -OutFile $dest -UseBasicParsing
+    Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+
+    $extractDir = Join-Path $env:TEMP "bolt-extract-$(Get-Random)"
+    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
+    $exe = Get-ChildItem -Path $extractDir -Filter "*.exe" -Recurse | Select-Object -First 1
+    if (-not $exe) { Write-Fail "no .exe found in release zip" }
+    Copy-Item $exe.FullName $dest -Force
+    Remove-Item $zipPath, $extractDir -Recurse -Force -ErrorAction SilentlyContinue
     Write-Ok "downloaded"
 }
 
