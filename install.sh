@@ -61,16 +61,20 @@ else
     fi
 
     TAG="$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*"tag_name": *"\([^"]*\)".*/\1/')"
-    URL="$(echo "$RELEASE_JSON" | grep "browser_download_url" | grep "${OS}_${ARCH}" | grep -v '\.tar\.gz\|\.zip' | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')"
+    URL="$(echo "$RELEASE_JSON" | grep "browser_download_url" | grep "${OS}_${ARCH}.*\.tar\.gz" | head -1 | sed 's/.*"browser_download_url": *"\([^"]*\)".*/\1/')"
 
     [ -n "$URL" ] || fail "no prebuilt for ${OS}_${ARCH} in release $TAG — try --from-source"
 
     info "downloading bolt $TAG (${OS}_${ARCH})"
+    TMP="$(mktemp -d)"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$URL" -o "$INSTALL_DIR/$BINARY"
+        curl -fsSL "$URL" -o "$TMP/bolt.tar.gz"
     else
-        wget -qO "$INSTALL_DIR/$BINARY" "$URL"
+        wget -qO "$TMP/bolt.tar.gz" "$URL"
     fi
+    tar -xzf "$TMP/bolt.tar.gz" -C "$TMP"
+    mv "$TMP/$BINARY" "$INSTALL_DIR/$BINARY"
+    rm -rf "$TMP"
     ok "downloaded"
 fi
 
