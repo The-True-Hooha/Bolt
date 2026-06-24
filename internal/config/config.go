@@ -109,7 +109,6 @@ func setDefaults(cfgDir string) {
 	V.SetDefault("plugins", map[string]PluginConfig{})
 }
 
-// --- Tag operations ---
 
 func GetFileTags(filename string) []string {
 	key := "tags.files." + sanitizeKey(filename)
@@ -139,7 +138,6 @@ func RemoveFileTag(filename, tag string) error {
 	return V.WriteConfig()
 }
 
-// viper keys cannot contain dots — replace with underscores for path components
 func sanitizeKey(path string) string {
 	result := []byte(path)
 	for i, b := range result {
@@ -150,7 +148,6 @@ func sanitizeKey(path string) string {
 	return string(result)
 }
 
-// --- Plugin loading ---
 
 func GetPlugins() map[string]PluginConfig {
 	var cfg Config
