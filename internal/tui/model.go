@@ -1,7 +1,9 @@
 package tui
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -20,7 +22,13 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/The-True-Hooha/Bolt/internal/config"
+	udiff "github.com/The-True-Hooha/Bolt/internal/utils/diff"
+	"github.com/The-True-Hooha/Bolt/internal/utils/diskusage"
+	"github.com/The-True-Hooha/Bolt/internal/utils/dupes"
+	recentpkg "github.com/The-True-Hooha/Bolt/internal/utils/recent"
 	srch "github.com/The-True-Hooha/Bolt/internal/utils/search"
+	"github.com/The-True-Hooha/Bolt/internal/utils/trash"
 )
 
 var (
@@ -151,6 +159,11 @@ const (
 	modeNewFile
 	modeSearch
 	modeCommand
+	modeTag
+	modeBatchRename
+	modeSymlink
+	modeGoto
+	modeChmod
 )
 
 type keyMap struct {
@@ -182,6 +195,21 @@ type keyMap struct {
 	Help         key.Binding
 	Search       key.Binding
 	Command      key.Binding
+	Editor       key.Binding
+	TagAdd       key.Binding
+	TagRemove    key.Binding
+	BatchRename  key.Binding
+	Symlink      key.Binding
+	GotoPath     key.Binding
+	Checksum     key.Binding
+	Duplicate    key.Binding
+	Diff         key.Binding
+	Trash        key.Binding
+	Info         key.Binding
+	Chmod        key.Binding
+	Undo         key.Binding
+	Recent       key.Binding
+	FindDupes    key.Binding
 }
 
 var keys = keyMap{
@@ -213,6 +241,21 @@ var keys = keyMap{
 	Help:         key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 	Search:       key.NewBinding(key.WithKeys("ctrl+f"), key.WithHelp("^f", "search")),
 	Command:      key.NewBinding(key.WithKeys(":"), key.WithHelp(":", "command")),
+	Editor:       key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+	TagAdd:       key.NewBinding(key.WithKeys("t"), key.WithHelp("t", "tag")),
+	TagRemove:    key.NewBinding(key.WithKeys("T"), key.WithHelp("T", "untag")),
+	BatchRename:  key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "batch rename")),
+	Symlink:      key.NewBinding(key.WithKeys("L"), key.WithHelp("L", "symlink")),
+	GotoPath:     key.NewBinding(key.WithKeys("P"), key.WithHelp("P", "goto path")),
+	Checksum:     key.NewBinding(key.WithKeys("#"), key.WithHelp("#", "checksum")),
+	Duplicate:    key.NewBinding(key.WithKeys("u"), key.WithHelp("u", "duplicate")),
+	Diff:         key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "diff")),
+	Trash:        key.NewBinding(key.WithKeys("ctrl+t"), key.WithHelp("^t", "trash")),
+	Info:         key.NewBinding(key.WithKeys("i"), key.WithHelp("i", "info")),
+	Chmod:        key.NewBinding(key.WithKeys("Z"), key.WithHelp("Z", "chmod")),
+	Undo:         key.NewBinding(key.WithKeys("ctrl+z"), key.WithHelp("^z", "undo")),
+	Recent:       key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("^r", "recent")),
+	FindDupes:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "find dupes")),
 }
 
 type dirLoadedMsg struct {
@@ -223,7 +266,6 @@ type dirLoadedMsg struct {
 type previewLoadedMsg struct {
 	content string
 	isDir   bool
-	isImage bool
 	entries []fs.DirEntry
 }
 type diskUsageMsg struct{ free, total uint64 }
@@ -235,12 +277,53 @@ type searchResultMsg struct {
 	results []searchResult
 	done    bool
 }
+type checksumMsg struct{ name, sum string }
+type editorDoneMsg struct{}
+type diffDoneMsg struct{ content string }
+type pushUndoMsg struct {
+	desc string
+	cmd  tea.Cmd
+}
+type trashPair struct{ dest, src string }
+type trashedMsg struct {
+	items []trashPair
+	dir   string
+}
+type recentLoadedMsg struct{ entries []recentEntry }
+type dupesFoundMsg struct{ groups []dupeGroup }
+type dirSizesMsg struct {
+	dir   string
+	sizes []dirSizeEntry
+}
 
 type searchResult struct {
 	path         string
 	name         string
 	isDir        bool
 	contentMatch bool
+}
+
+type undoOp struct {
+	desc string
+	cmd  tea.Cmd
+}
+
+type recentEntry struct {
+	path  string
+	name  string
+	isDir bool
+}
+
+type dupeGroup struct {
+	hash  string
+	size  int64
+	paths []string
+}
+
+type dirSizeEntry struct {
+	name  string
+	size  int64
+	isDir bool
 }
 
 type Model struct {
@@ -259,7 +342,7 @@ type Model struct {
 	preview      string
 	previewDir   []fs.DirEntry
 	previewIsDir bool
-	previewIsImg bool
+
 	diskFree     uint64
 	diskTotal    uint64
 	navHistory   []string
@@ -278,6 +361,22 @@ type Model struct {
 	searchResults []searchResult
 	searchCursor  int
 	searchDone    bool
+
+	showInfo      bool
+	previewIsDiff bool
+	fileTags      []string
+	dirSizes      []dirSizeEntry
+
+	undoStack []undoOp
+
+	showRecent    bool
+	recentEntries []recentEntry
+	recentCursor  int
+
+	showDupes   bool
+	dupeGroups  []dupeGroup
+	dupeLoading bool
+	dupeCursor  int
 }
 
 func New(startPath string) Model {
@@ -315,13 +414,76 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.cursor, m.offset = 0, 0
 		m.selected = make(map[int]bool)
 		m.err = nil
+		go recentpkg.Push(msg.path, true) //nolint
 		return m, tea.Batch(m.loadPreviewCmd(), loadDiskUsage(m.path))
 
 	case previewLoadedMsg:
 		m.preview = msg.content
 		m.previewIsDir = msg.isDir
-		m.previewIsImg = msg.isImage
+		m.previewIsDiff = false
 		m.previewDir = msg.entries
+		m.dirSizes = nil
+		if len(m.entries) > 0 {
+			path := filepath.Join(m.path, m.entries[m.cursor].Name())
+			m.fileTags = config.GetFileTags(path)
+			if msg.isDir {
+				return m, m.loadDirSizesCmd(path)
+			}
+		}
+		return m, nil
+
+	case checksumMsg:
+		m.statusMsg = fmt.Sprintf("SHA-256 %s: %s", msg.name, msg.sum)
+		m.statusOk = true
+		return m, nil
+
+	case editorDoneMsg:
+		return m, m.loadPreviewCmd()
+
+	case diffDoneMsg:
+		m.preview = msg.content
+		m.previewIsDiff = true
+		m.previewIsDir = false
+		return m, nil
+
+	case pushUndoMsg:
+		m.undoStack = append(m.undoStack, undoOp{desc: msg.desc, cmd: msg.cmd})
+		if len(m.undoStack) > 30 {
+			m.undoStack = m.undoStack[1:]
+		}
+		return m, nil
+
+	case trashedMsg:
+		items := msg.items
+		dir := msg.dir
+		undoCmd := tea.Cmd(func() tea.Msg {
+			for _, p := range items {
+				os.Rename(p.dest, p.src)
+			}
+			return loadDir(dir)()
+		})
+		n := len(items)
+		return m, tea.Batch(
+			loadDir(dir),
+			func() tea.Msg {
+				return pushUndoMsg{desc: fmt.Sprintf("trash %d item(s)", n), cmd: undoCmd}
+			},
+		)
+
+	case recentLoadedMsg:
+		m.recentEntries = msg.entries
+		return m, nil
+
+	case dupesFoundMsg:
+		m.dupeGroups = msg.groups
+		m.dupeLoading = false
+		m.dupeCursor = 0
+		return m, nil
+
+	case dirSizesMsg:
+		if msg.dir == m.path {
+			m.dirSizes = msg.sizes
+		}
 		return m, nil
 
 	case diskUsageMsg:
@@ -370,6 +532,57 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// overlay panel navigation
+	if m.showRecent {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.showRecent = false
+			return m, nil
+		case tea.KeyUp:
+			if m.recentCursor > 0 {
+				m.recentCursor--
+			}
+			return m, nil
+		case tea.KeyDown:
+			if m.recentCursor < len(m.recentEntries)-1 {
+				m.recentCursor++
+			}
+			return m, nil
+		case tea.KeyEnter:
+			if m.recentCursor < len(m.recentEntries) {
+				path := m.recentEntries[m.recentCursor].path
+				m.showRecent = false
+				return m, m.navigate(path)
+			}
+		}
+		return m, nil
+	}
+
+	if m.showDupes {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.showDupes = false
+			return m, nil
+		case tea.KeyUp:
+			if m.dupeCursor > 0 {
+				m.dupeCursor--
+			}
+			return m, nil
+		case tea.KeyDown:
+			if m.dupeCursor < len(m.dupeGroups)-1 {
+				m.dupeCursor++
+			}
+			return m, nil
+		case tea.KeyEnter:
+			if m.dupeCursor < len(m.dupeGroups) && len(m.dupeGroups[m.dupeCursor].paths) > 0 {
+				dir := filepath.Dir(m.dupeGroups[m.dupeCursor].paths[0])
+				m.showDupes = false
+				return m, m.navigate(dir)
+			}
+		}
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, keys.Quit):
 		return m, tea.Quit
@@ -418,6 +631,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor < m.offset {
 				m.offset--
 			}
+			m.clearPreview()
 			return m, m.loadPreviewCmd()
 		}
 
@@ -427,26 +641,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor >= m.offset+m.listHeight() {
 				m.offset++
 			}
+			m.clearPreview()
 			return m, m.loadPreviewCmd()
 		}
 
 	case key.Matches(msg, keys.Home):
 		m.cursor, m.offset = 0, 0
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.End):
 		m.cursor = len(m.entries) - 1
 		m.offset = max(0, len(m.entries)-m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.PageUp):
 		m.cursor = max(0, m.cursor-m.listHeight())
 		m.offset = max(0, m.offset-m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.PageDown):
 		m.cursor = min(len(m.entries)-1, m.cursor+m.listHeight())
 		m.offset = min(max(0, len(m.entries)-m.listHeight()), m.offset+m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.Enter):
@@ -528,6 +747,97 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.cmdInput = ""
 		m.cmdOutput = ""
 		return m, nil
+
+	case key.Matches(msg, keys.Editor):
+		if len(m.entries) > 0 && !m.entries[m.cursor].IsDir() {
+			return m.openInEditor()
+		}
+
+	case key.Matches(msg, keys.TagAdd):
+		if len(m.entries) > 0 {
+			m.inputMode = modeTag
+			m.inputValue = ""
+			m.inputPrompt = "add tag:"
+		}
+
+	case key.Matches(msg, keys.TagRemove):
+		return m, m.removeLastTagCmd()
+
+	case key.Matches(msg, keys.BatchRename):
+		if len(m.selected) > 0 {
+			m.inputMode = modeBatchRename
+			m.inputValue = "{name}{ext}"
+			m.inputPrompt = "rename pattern ({name},{ext},{n},{N}):"
+		} else {
+			m.err = fmt.Errorf("select files first (space) then press R")
+		}
+
+	case key.Matches(msg, keys.Symlink):
+		if len(m.entries) > 0 {
+			m.inputMode = modeSymlink
+			m.inputValue = m.entries[m.cursor].Name() + "_link"
+			m.inputPrompt = "symlink name:"
+		}
+
+	case key.Matches(msg, keys.GotoPath):
+		m.inputMode = modeGoto
+		m.inputValue = m.path
+		m.inputPrompt = "goto:"
+
+	case key.Matches(msg, keys.Checksum):
+		if len(m.entries) > 0 && !m.entries[m.cursor].IsDir() {
+			return m, m.checksumCmd()
+		}
+
+	case key.Matches(msg, keys.Duplicate):
+		if len(m.entries) > 0 {
+			return m, m.duplicateCmd()
+		}
+
+	case key.Matches(msg, keys.Diff):
+		return m, m.diffCmd()
+
+	case key.Matches(msg, keys.Trash):
+		return m, m.trashCmd()
+
+	case key.Matches(msg, keys.Info):
+		m.showInfo = !m.showInfo
+
+	case key.Matches(msg, keys.Chmod):
+		if len(m.entries) > 0 {
+			info, _ := m.entries[m.cursor].Info()
+			if info != nil {
+				m.inputMode = modeChmod
+				m.inputValue = fmt.Sprintf("%04o", info.Mode().Perm())
+				m.inputPrompt = "chmod (octal):"
+			}
+		}
+
+	case key.Matches(msg, keys.Undo):
+		if len(m.undoStack) > 0 {
+			op := m.undoStack[len(m.undoStack)-1]
+			m.undoStack = m.undoStack[:len(m.undoStack)-1]
+			m.statusMsg = "undid: " + op.desc
+			m.statusOk = true
+			return m, op.cmd
+		}
+		m.err = fmt.Errorf("nothing to undo")
+
+	case key.Matches(msg, keys.Recent):
+		m.showRecent = !m.showRecent
+		m.showDupes = false
+		if m.showRecent {
+			return m, m.loadRecentCmd()
+		}
+
+	case key.Matches(msg, keys.FindDupes):
+		m.showDupes = !m.showDupes
+		m.showRecent = false
+		if m.showDupes {
+			m.dupeLoading = true
+			m.dupeGroups = nil
+			return m, m.findDupesCmd()
+		}
 	}
 
 	return m, nil
@@ -726,6 +1036,16 @@ func (m Model) handleInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, m.commitNewDir()
 		case modeNewFile:
 			return m, m.commitNewFile()
+		case modeTag:
+			return m, m.commitTag()
+		case modeBatchRename:
+			return m, m.commitBatchRename()
+		case modeSymlink:
+			return m, m.commitSymlink()
+		case modeGoto:
+			return m, m.commitGoto()
+		case modeChmod:
+			return m, m.commitChmod()
 		}
 	case tea.KeyBackspace:
 		if len(m.inputValue) > 0 {
@@ -761,14 +1081,7 @@ func (m Model) View() string {
 	rightW := m.width - leftW - 4
 
 	left := sPaneActive.Width(leftW).Height(innerH - 2).Render(m.fileListView(leftW, innerH-2))
-	var right string
-	if m.previewIsImg && m.preview != "" {
-		// image contains raw ANSI true-color sequences that lipgloss can't measure;
-		// render it directly at exact pixel width to prevent bleed into adjacent pane
-		right = m.imagePane(rightW, innerH-2)
-	} else {
-		right = sPane.Width(rightW).Height(innerH - 2).Render(m.previewView(rightW, innerH-2))
-	}
+	right := sPane.Width(rightW).Height(innerH - 2).Render(m.previewView(rightW, innerH-2))
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
@@ -782,6 +1095,12 @@ func (m Model) View() string {
 		// nothing
 	default:
 		parts = append(parts, m.inputBarView())
+	}
+	if m.showRecent {
+		parts = append(parts, m.recentPanelView())
+	}
+	if m.showDupes {
+		parts = append(parts, m.dupesPanelView())
 	}
 	parts = append(parts, status)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
@@ -933,17 +1252,33 @@ func (m Model) previewView(w, h int) string {
 		meta = "\n " + fileIcon(entry) + " " + sNormal.Render(entry.Name()) + sz + "\n " + perms + "  " + mod + "\n"
 	}
 
-	if m.previewIsDir {
-		return hdr + meta + m.dirPreview(w, h-4)
-	}
-	if m.previewIsImg {
-		if m.preview == "" {
-			return hdr + meta + "\n" + sMuted.Render("  (could not decode image)")
+	// tags row
+	tagsRow := ""
+	if len(m.fileTags) > 0 {
+		tagParts := make([]string, len(m.fileTags))
+		for i, tag := range m.fileTags {
+			tagParts[i] = lipgloss.NewStyle().Foreground(clrCyan).Render("#" + tag)
 		}
-		return hdr + meta + "\n" + m.preview
+		tagsRow = "\n " + strings.Join(tagParts, "  ") + "\n"
+	}
+
+	// extended info overlay
+	extInfo := ""
+	if m.showInfo && info != nil {
+		extInfo = fmt.Sprintf("\n %s  octal:%04o\n", sMuted.Render("perms:"), info.Mode().Perm())
+		if entry.Type()&fs.ModeSymlink != 0 {
+			target, err := os.Readlink(filepath.Join(m.path, entry.Name()))
+			if err == nil {
+				extInfo += " " + sMuted.Render("→ "+target) + "\n"
+			}
+		}
+	}
+
+	if m.previewIsDir {
+		return hdr + meta + tagsRow + extInfo + m.dirPreview(w, h-4)
 	}
 	if m.preview == "" {
-		return hdr + meta + "\n" + sMuted.Render("  (binary or empty file)")
+		return hdr + meta + tagsRow + extInfo + "\n" + sMuted.Render("  (binary or empty file)")
 	}
 
 	lines := strings.Split(m.preview, "\n")
@@ -955,16 +1290,36 @@ func (m Model) previewView(w, h int) string {
 	var b strings.Builder
 	b.WriteString(hdr)
 	b.WriteString(meta)
-	for i, line := range lines {
-		if lipgloss.Width(line) > w-4 {
-			line = truncate(line, w-4)
+	b.WriteString(tagsRow)
+	b.WriteString(extInfo)
+	if m.previewIsDiff {
+		for _, line := range lines {
+			if lipgloss.Width(line) > w-2 {
+				line = truncate(line, w-2)
+			}
+			switch {
+			case strings.HasPrefix(line, "+ "):
+				fmt.Fprintf(&b, " %s\n", lipgloss.NewStyle().Foreground(clrGreen).Render(line))
+			case strings.HasPrefix(line, "- "):
+				fmt.Fprintf(&b, " %s\n", lipgloss.NewStyle().Foreground(clrRed).Render(line))
+			case strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++"):
+				fmt.Fprintf(&b, " %s\n", lipgloss.NewStyle().Foreground(clrCyan).Render(line))
+			default:
+				fmt.Fprintf(&b, " %s\n", line)
+			}
 		}
-		fmt.Fprintf(&b, " %s %s\n", sMuted.Render(fmt.Sprintf("%3d", i+1)), line)
+	} else {
+		for i, line := range lines {
+			if lipgloss.Width(line) > w-4 {
+				line = truncate(line, w-4)
+			}
+			fmt.Fprintf(&b, " %s %s\n", sMuted.Render(fmt.Sprintf("%3d", i+1)), line)
+		}
 	}
 	return b.String()
 }
 
-func (m Model) dirPreview(_ int, h int) string {
+func (m Model) dirPreview(w int, h int) string {
 	if len(m.previewDir) == 0 {
 		return sMuted.Render("  (empty directory)")
 	}
@@ -981,6 +1336,38 @@ func (m Model) dirPreview(_ int, h int) string {
 		sMuted.Render(fmt.Sprintf("%d dirs", dirs)),
 		sMuted.Render(fmt.Sprintf("%d files", files)),
 	)
+
+	// if dir sizes loaded, show usage bars
+	if len(m.dirSizes) > 0 {
+		maxSz := int64(1)
+		for _, e := range m.dirSizes {
+			if e.size > maxSz {
+				maxSz = e.size
+			}
+		}
+		barW := max(4, w/4)
+		for i, e := range m.dirSizes {
+			if i >= h-4 {
+				fmt.Fprintf(&b, " %s\n", sMuted.Render(fmt.Sprintf("  … %d more", len(m.dirSizes)-i)))
+				break
+			}
+			filled := int(int64(barW) * e.size / maxSz)
+			bar := strings.Repeat("█", filled) + strings.Repeat("░", barW-filled)
+			icon := ""
+			if e.isDir {
+				icon = " "
+			} else {
+				icon = " "
+			}
+			fmt.Fprintf(&b, " %s%s %s %s\n",
+				icon, sMuted.Render(bar),
+				lipgloss.NewStyle().Foreground(clrCyan).Render(humanizeSize(e.size)),
+				e.name,
+			)
+		}
+		return b.String()
+	}
+
 	for i, e := range m.previewDir {
 		if i >= h-3 {
 			fmt.Fprintf(&b, " %s\n", sMuted.Render(fmt.Sprintf("  … %d more", len(m.previewDir)-i)))
@@ -1008,42 +1395,6 @@ func (m Model) inputBarView() string {
 	return prompt + input + strings.Repeat(" ", gap) + hint
 }
 
-func (m Model) imagePane(w, h int) string {
-	border := lipgloss.RoundedBorder()
-	borderStyle := lipgloss.NewStyle().Foreground(clrBorder)
-
-	topBar := borderStyle.Render(border.TopLeft) +
-		borderStyle.Render(strings.Repeat(border.Top, w)) +
-		borderStyle.Render(border.TopRight)
-
-	botBar := borderStyle.Render(border.BottomLeft) +
-		borderStyle.Render(strings.Repeat(border.Bottom, w)) +
-		borderStyle.Render(border.BottomRight)
-
-	side := borderStyle.Render(border.Left)
-	sideR := borderStyle.Render(border.Right)
-
-	// Split rendered image into lines; strip trailing cursor/movement sequences
-	raw := strings.TrimRight(m.preview, "\n\r")
-	imgLines := strings.Split(raw, "\n")
-	var rows []string
-	rows = append(rows, topBar)
-	for i := range h {
-		var content string
-		if i < len(imgLines) {
-			line := imgLines[i]
-			// strip any trailing non-color escape sequences (cursor moves, etc.)
-			// by re-appending a hard reset and trusting lipgloss.Width for padding
-			content = line + "\x1b[0m"
-		}
-		// pad to exactly w visible chars so right border aligns
-		visW := lipgloss.Width(content)
-		pad := max(0, w-visW)
-		rows = append(rows, side+content+strings.Repeat(" ", pad)+sideR)
-	}
-	rows = append(rows, botBar)
-	return strings.Join(rows, "\n")
-}
 
 func (m Model) commandBarView() string {
 	prompt := sKey.Render(" : ")
@@ -1117,6 +1468,66 @@ func (m Model) searchPanelView() string {
 	return sSearchBar.Width(m.width - 2).Render(strings.Join(rows, "\n"))
 }
 
+func (m Model) recentPanelView() string {
+	var rows []string
+	title := sHeader.Width(m.width - 2).Render("  Recent  (↑↓ navigate  ↵ open  esc close)")
+	rows = append(rows, title)
+	if len(m.recentEntries) == 0 {
+		rows = append(rows, sMuted.Render("  no recent files"))
+	}
+	for i, e := range m.recentEntries {
+		if i >= 12 {
+			break
+		}
+		icon := " "
+		if e.isDir {
+			icon = " "
+		}
+		line := icon + " " + e.path
+		if lipgloss.Width(line) > m.width-4 {
+			line = icon + " " + truncate(e.path, m.width-6)
+		}
+		if i == m.recentCursor {
+			rows = append(rows, sSearchCursor.Render("❯"+line))
+		} else {
+			rows = append(rows, sSearchResult.Render(" "+line))
+		}
+	}
+	return sSearchBar.Width(m.width - 2).Render(strings.Join(rows, "\n"))
+}
+
+func (m Model) dupesPanelView() string {
+	var rows []string
+	title := "  Duplicate Files"
+	if m.dupeLoading {
+		title += " (scanning…)"
+	} else if len(m.dupeGroups) == 0 {
+		title += " — none found"
+	} else {
+		title += fmt.Sprintf(" — %d group(s)", len(m.dupeGroups))
+	}
+	rows = append(rows, sHeader.Width(m.width-2).Render(title+"  (↑↓  ↵ goto  esc close)"))
+	for i, g := range m.dupeGroups {
+		if i >= 10 {
+			break
+		}
+		hdr := fmt.Sprintf(" [%s]  %s × %d files", g.hash, humanizeSize(g.size), len(g.paths))
+		if i == m.dupeCursor {
+			rows = append(rows, sSearchCursor.Render("❯"+hdr))
+		} else {
+			rows = append(rows, sSearchResult.Render(" "+hdr))
+		}
+		for _, p := range g.paths {
+			line := "    " + p
+			if lipgloss.Width(line) > m.width-4 {
+				line = "    " + truncate(p, m.width-6)
+			}
+			rows = append(rows, sMuted.Render(line))
+		}
+	}
+	return sSearchBar.Width(m.width - 2).Render(strings.Join(rows, "\n"))
+}
+
 func (m Model) statusBarView() string {
 	if m.err != nil {
 		return sError.Render(" ✗ " + m.err.Error())
@@ -1143,9 +1554,12 @@ func (m Model) statusBarView() string {
 
 	shorts := []struct{ k, v string }{
 		{"↑↓", "nav"}, {"↵", "open"}, {"spc", "sel"}, {"^a", "all"},
-		{"c", "copy"}, {"x", "cut"}, {"p", "paste"}, {"D", "del"},
-		{"r", "ren"}, {"m", "mkdir"}, {"n", "new"}, {"/", "filter"},
-		{"^f", "search"}, {":", "cmd"}, {"s", "sort"}, {"~", "home"}, {"[/]", "history"}, {"?", "help"}, {"q", "quit"},
+		{"c", "copy"}, {"x", "cut"}, {"p", "paste"}, {"D", "del"}, {"^t", "trash"},
+		{"r", "ren"}, {"R", "batch-ren"}, {"u", "dup"}, {"L", "symlink"},
+		{"e", "edit"}, {"d", "diff"}, {"#", "sum"}, {"t", "tag"}, {"i", "info"},
+		{"^r", "recent"}, {"F", "dupes"}, {"^z", "undo"},
+		{"m", "mkdir"}, {"n", "new"}, {"/", "filter"}, {"P", "goto"},
+		{"^f", "search"}, {":", "cmd"}, {"s", "sort"}, {"~", "home"}, {"[/]", "hist"}, {"?", "help"}, {"q", "quit"},
 	}
 	var parts []string
 	for _, s := range shorts {
@@ -1164,11 +1578,14 @@ func (m Model) helpView() string {
 		heading string
 		items   []key.Binding
 	}{
-		{"Navigation", []key.Binding{keys.Up, keys.Down, keys.Home, keys.End, keys.PageUp, keys.PageDown, keys.Enter, keys.Back, keys.GotoHome, keys.NavBack, keys.NavForward}},
+		{"Navigation", []key.Binding{keys.Up, keys.Down, keys.Home, keys.End, keys.PageUp, keys.PageDown, keys.Enter, keys.Back, keys.GotoHome, keys.NavBack, keys.NavForward, keys.GotoPath}},
 		{"Selection & Clipboard", []key.Binding{keys.Select, keys.SelectAll, keys.Copy, keys.Cut, keys.Paste}},
-		{"File Operations", []key.Binding{keys.Delete, keys.Rename, keys.NewDir, keys.NewFile, keys.CopyPath}},
+		{"File Operations", []key.Binding{keys.Delete, keys.Trash, keys.Rename, keys.BatchRename, keys.NewDir, keys.NewFile, keys.CopyPath, keys.Duplicate, keys.Symlink, keys.Chmod}},
+		{"Editor & View", []key.Binding{keys.Editor, keys.Info, keys.Diff, keys.Checksum, keys.Recent, keys.FindDupes}},
+		{"Tags", []key.Binding{keys.TagAdd, keys.TagRemove}},
+		{"Undo", []key.Binding{keys.Undo}},
 		{"View", []key.Binding{keys.Filter, keys.Search, keys.SortCycle, keys.ToggleHidden, keys.Help}},
-		{"App", []key.Binding{keys.Quit}},
+		{"App", []key.Binding{keys.Command, keys.Quit}},
 	}
 
 	for _, sec := range sections {
@@ -1208,21 +1625,27 @@ func (m Model) navigate(path string) tea.Cmd {
 	}
 }
 
+func (m *Model) clearPreview() {
+	m.preview = ""
+	m.previewIsDir = false
+	m.previewIsDiff = false
+	m.previewDir = nil
+	m.fileTags = nil
+}
+
 func (m Model) loadPreviewCmd() tea.Cmd {
 	if len(m.entries) == 0 {
 		return nil
 	}
 	entry := m.entries[m.cursor]
 	target := filepath.Join(m.path, entry.Name())
-	w, h := m.previewDims()
 	return func() tea.Msg {
 		if entry.IsDir() {
 			sub, _ := os.ReadDir(target)
 			return previewLoadedMsg{isDir: true, entries: sub}
 		}
 		if isImageFile(entry.Name()) {
-			rendered := renderImagePreview(target, w, h)
-			return previewLoadedMsg{content: rendered, isImage: true}
+			return previewLoadedMsg{}
 		}
 		info, err := os.Stat(target)
 		if err != nil || info.Size() > 256*1024 {
@@ -1241,8 +1664,15 @@ func (m Model) openSelected() tea.Cmd {
 		return nil
 	}
 	entry := m.entries[m.cursor]
+	path := filepath.Join(m.path, entry.Name())
 	if entry.IsDir() {
-		return loadDir(filepath.Join(m.path, entry.Name()))
+		return loadDir(path)
+	}
+	if isImageFile(entry.Name()) {
+		return func() tea.Msg {
+			exec.Command("cmd", "/c", "start", "", path).Start()
+			return nil
+		}
 	}
 	return nil
 }
@@ -1314,12 +1744,20 @@ func (m Model) commitRename() tea.Cmd {
 	src := filepath.Join(m.path, m.entries[m.cursor].Name())
 	dst := filepath.Join(m.path, m.inputValue)
 	path := m.path
-	return func() tea.Msg {
-		if err := os.Rename(src, dst); err != nil {
-			return errMsg{fmt.Errorf("rename failed: %w", err)}
-		}
-		return loadDir(path)()
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			if err := os.Rename(src, dst); err != nil {
+				return errMsg{fmt.Errorf("rename failed: %w", err)}
+			}
+			return loadDir(path)()
+		},
+		func() tea.Msg {
+			return pushUndoMsg{
+				desc: "rename " + filepath.Base(src),
+				cmd:  func() tea.Msg { os.Rename(dst, src); return loadDir(path)() },
+			}
+		},
+	)
 }
 
 func (m Model) commitNewDir() tea.Cmd {
@@ -1328,12 +1766,20 @@ func (m Model) commitNewDir() tea.Cmd {
 	}
 	target := filepath.Join(m.path, m.inputValue)
 	path := m.path
-	return func() tea.Msg {
-		if err := os.MkdirAll(target, 0755); err != nil {
-			return errMsg{fmt.Errorf("mkdir failed: %w", err)}
-		}
-		return loadDir(path)()
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return errMsg{fmt.Errorf("mkdir failed: %w", err)}
+			}
+			return loadDir(path)()
+		},
+		func() tea.Msg {
+			return pushUndoMsg{
+				desc: "mkdir " + m.inputValue,
+				cmd:  func() tea.Msg { os.RemoveAll(target); return loadDir(path)() },
+			}
+		},
+	)
 }
 
 func (m Model) commitNewFile() tea.Cmd {
@@ -1342,13 +1788,302 @@ func (m Model) commitNewFile() tea.Cmd {
 	}
 	target := filepath.Join(m.path, m.inputValue)
 	path := m.path
+	return tea.Batch(
+		func() tea.Msg {
+			f, err := os.Create(target)
+			if err != nil {
+				return errMsg{fmt.Errorf("create failed: %w", err)}
+			}
+			f.Close()
+			return loadDir(path)()
+		},
+		func() tea.Msg {
+			return pushUndoMsg{
+				desc: "touch " + m.inputValue,
+				cmd:  func() tea.Msg { os.Remove(target); return loadDir(path)() },
+			}
+		},
+	)
+}
+
+func (m Model) openInEditor() (tea.Model, tea.Cmd) {
+	path := filepath.Join(m.path, m.entries[m.cursor].Name())
+	editor := os.Getenv("VISUAL")
+	if editor == "" {
+		editor = os.Getenv("EDITOR")
+	}
+	if editor == "" {
+		editor = "notepad"
+	}
+	cmd := exec.Command(editor, path)
+	return m, tea.ExecProcess(cmd, func(err error) tea.Msg {
+		return editorDoneMsg{}
+	})
+}
+
+func (m Model) commitTag() tea.Cmd {
+	if m.inputValue == "" || len(m.entries) == 0 {
+		m.inputMode = modeNormal
+		return nil
+	}
+	path := filepath.Join(m.path, m.entries[m.cursor].Name())
+	tag := m.inputValue
 	return func() tea.Msg {
-		f, err := os.Create(target)
-		if err != nil {
-			return errMsg{fmt.Errorf("create failed: %w", err)}
+		if err := config.AddFileTag(path, tag); err != nil {
+			return errMsg{err}
 		}
-		f.Close()
+		return okMsg{fmt.Sprintf("tagged %q → %q", filepath.Base(path), tag)}
+	}
+}
+
+func (m Model) removeLastTagCmd() tea.Cmd {
+	if len(m.entries) == 0 {
+		return nil
+	}
+	path := filepath.Join(m.path, m.entries[m.cursor].Name())
+	return func() tea.Msg {
+		tags := config.GetFileTags(path)
+		if len(tags) == 0 {
+			return errMsg{fmt.Errorf("no tags on this file")}
+		}
+		last := tags[len(tags)-1]
+		if err := config.RemoveFileTag(path, last); err != nil {
+			return errMsg{err}
+		}
+		return okMsg{fmt.Sprintf("removed tag %q", last)}
+	}
+}
+
+func (m Model) commitBatchRename() tea.Cmd {
+	if m.inputValue == "" || len(m.selected) == 0 {
+		return nil
+	}
+	pattern := m.inputValue
+	indices := make([]int, 0, len(m.selected))
+	for idx := range m.selected {
+		if idx < len(m.entries) {
+			indices = append(indices, idx)
+		}
+	}
+	sort.Ints(indices)
+	type rename struct{ src, dst string }
+	var renames []rename
+	for i, idx := range indices {
+		e := m.entries[idx]
+		ext := filepath.Ext(e.Name())
+		stem := strings.TrimSuffix(e.Name(), ext)
+		name := pattern
+		name = strings.ReplaceAll(name, "{name}", stem)
+		name = strings.ReplaceAll(name, "{ext}", ext)
+		name = strings.ReplaceAll(name, "{n}", fmt.Sprintf("%d", i+1))
+		name = strings.ReplaceAll(name, "{N}", fmt.Sprintf("%03d", i+1))
+		renames = append(renames, rename{
+			src: filepath.Join(m.path, e.Name()),
+			dst: filepath.Join(m.path, name),
+		})
+	}
+	path := m.path
+	return func() tea.Msg {
+		for _, r := range renames {
+			if err := os.Rename(r.src, r.dst); err != nil {
+				return errMsg{fmt.Errorf("rename failed: %w", err)}
+			}
+		}
 		return loadDir(path)()
+	}
+}
+
+func (m Model) commitSymlink() tea.Cmd {
+	if m.inputValue == "" || len(m.entries) == 0 {
+		return nil
+	}
+	target := filepath.Join(m.path, m.entries[m.cursor].Name())
+	linkPath := filepath.Join(m.path, m.inputValue)
+	path := m.path
+	return func() tea.Msg {
+		if err := os.Symlink(target, linkPath); err != nil {
+			return errMsg{fmt.Errorf("symlink failed: %w", err)}
+		}
+		return loadDir(path)()
+	}
+}
+
+func (m Model) commitGoto() tea.Cmd {
+	if m.inputValue == "" {
+		return nil
+	}
+	return m.navigate(m.inputValue)
+}
+
+func (m Model) commitChmod() tea.Cmd {
+	if m.inputValue == "" || len(m.entries) == 0 {
+		return nil
+	}
+	path := filepath.Join(m.path, m.entries[m.cursor].Name())
+	permStr := m.inputValue
+	dir := m.path
+	return func() tea.Msg {
+		var perm uint32
+		if _, err := fmt.Sscanf(permStr, "%o", &perm); err != nil {
+			return errMsg{fmt.Errorf("invalid permission: %s", permStr)}
+		}
+		if err := os.Chmod(path, os.FileMode(perm)); err != nil {
+			return errMsg{err}
+		}
+		return loadDir(dir)()
+	}
+}
+
+func (m Model) checksumCmd() tea.Cmd {
+	entry := m.entries[m.cursor]
+	path := filepath.Join(m.path, entry.Name())
+	name := entry.Name()
+	return func() tea.Msg {
+		f, err := os.Open(path)
+		if err != nil {
+			return errMsg{err}
+		}
+		defer f.Close()
+		h := sha256.New()
+		if _, err := io.Copy(h, f); err != nil {
+			return errMsg{err}
+		}
+		return checksumMsg{name: name, sum: fmt.Sprintf("%x", h.Sum(nil))}
+	}
+}
+
+func (m Model) duplicateCmd() tea.Cmd {
+	entry := m.entries[m.cursor]
+	src := filepath.Join(m.path, entry.Name())
+	ext := filepath.Ext(entry.Name())
+	stem := strings.TrimSuffix(entry.Name(), ext)
+	dst := filepath.Join(m.path, stem+"_copy"+ext)
+	for i := 2; ; i++ {
+		if _, err := os.Stat(dst); os.IsNotExist(err) {
+			break
+		}
+		dst = filepath.Join(m.path, fmt.Sprintf("%s_copy%d%s", stem, i, ext))
+	}
+	path := m.path
+	return func() tea.Msg {
+		if err := copyPath(src, dst); err != nil {
+			return errMsg{fmt.Errorf("duplicate failed: %w", err)}
+		}
+		return loadDir(path)()
+	}
+}
+
+func (m Model) diffCmd() tea.Cmd {
+	var paths []string
+	if len(m.selected) >= 2 {
+		indices := make([]int, 0, len(m.selected))
+		for idx := range m.selected {
+			if idx < len(m.entries) {
+				indices = append(indices, idx)
+			}
+		}
+		sort.Ints(indices)
+		for _, idx := range indices[:2] {
+			paths = append(paths, filepath.Join(m.path, m.entries[idx].Name()))
+		}
+	} else if len(m.selected) == 1 && len(m.entries) > 0 {
+		for idx := range m.selected {
+			if idx < len(m.entries) {
+				paths = append(paths, filepath.Join(m.path, m.entries[idx].Name()))
+			}
+		}
+		cur := filepath.Join(m.path, m.entries[m.cursor].Name())
+		if paths[0] != cur {
+			paths = append(paths, cur)
+		}
+	}
+	if len(paths) < 2 {
+		return func() tea.Msg { return errMsg{fmt.Errorf("select 2 files to diff (space to select)")} }
+	}
+	p1, p2 := paths[0], paths[1]
+	return func() tea.Msg {
+		a, err := os.ReadFile(p1)
+		if err != nil {
+			return errMsg{err}
+		}
+		b, err := os.ReadFile(p2)
+		if err != nil {
+			return errMsg{err}
+		}
+		content := udiff.Unified(filepath.Base(p1), filepath.Base(p2), string(a), string(b))
+		return diffDoneMsg{content: content}
+	}
+}
+
+func (m Model) trashCmd() tea.Cmd {
+	var targets []string
+	if len(m.selected) > 0 {
+		for idx := range m.selected {
+			if idx < len(m.entries) {
+				targets = append(targets, filepath.Join(m.path, m.entries[idx].Name()))
+			}
+		}
+	} else if len(m.entries) > 0 {
+		targets = []string{filepath.Join(m.path, m.entries[m.cursor].Name())}
+	}
+	dir := m.path
+	return func() tea.Msg {
+		var trashed []trashPair
+		for _, t := range targets {
+			dest, err := trash.TrashPath(t)
+			if err != nil {
+				return errMsg{fmt.Errorf("trash failed: %w", err)}
+			}
+			trashed = append(trashed, trashPair{dest, t})
+		}
+		return trashedMsg{items: trashed, dir: dir}
+	}
+}
+
+func (m Model) loadRecentCmd() tea.Cmd {
+	return func() tea.Msg {
+		entries, err := recentpkg.Load()
+		if err != nil || len(entries) == 0 {
+			return recentLoadedMsg{}
+		}
+		var result []recentEntry
+		for _, e := range entries {
+			result = append(result, recentEntry{path: e.Path, name: e.Name, isDir: e.IsDir})
+		}
+		return recentLoadedMsg{entries: result}
+	}
+}
+
+func (m Model) findDupesCmd() tea.Cmd {
+	root := m.path
+	return func() tea.Msg {
+		groups, err := dupes.Find(root)
+		if err != nil {
+			return errMsg{err}
+		}
+		var result []dupeGroup
+		for _, g := range groups {
+			result = append(result, dupeGroup{hash: g.Hash, size: g.Size, paths: g.Paths})
+		}
+		return dupesFoundMsg{groups: result}
+	}
+}
+
+func (m Model) loadDirSizesCmd(dir string) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := diskusage.TopLevel(dir)
+		if err != nil {
+			return nil
+		}
+		var sizes []dirSizeEntry
+		for _, e := range entries {
+			sizes = append(sizes, dirSizeEntry{
+				name:  filepath.Base(e.Path),
+				size:  e.Size,
+				isDir: e.IsDir,
+			})
+		}
+		return dirSizesMsg{dir: dir, sizes: sizes}
 	}
 }
 
@@ -1416,12 +2151,6 @@ func (m Model) listHeight() int {
 	return max(1, m.height-8)
 }
 
-func (m Model) previewDims() (w, h int) {
-	leftW := (m.width * 45 / 100) - 2
-	rightW := m.width - leftW - 4
-	reserved := 6 // header + statusbar + borders
-	return rightW - 2, max(1, m.height-reserved)
-}
 
 func fileIcon(e fs.DirEntry) string {
 	if e.IsDir() {

@@ -121,6 +121,23 @@ func HandleTrashEmptyCommand() common.Command {
 	}
 }
 
+// TrashPath moves path to trash and returns the stamped dest path (for undo).
+func TrashPath(path string) (string, error) {
+	dir := trashDir()
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return "", fmt.Errorf("cannot create trash directory: %w", err)
+	}
+	base := filepath.Base(path)
+	stamp := time.Now().Format("20060102-150405")
+	dest := filepath.Join(dir, fmt.Sprintf("%s.%s", base, stamp))
+	if err := os.Rename(path, dest); err != nil {
+		if err2 := crossDeviceMoveToTrash(path, dest); err2 != nil {
+			return "", err2
+		}
+	}
+	return dest, nil
+}
+
 func moveToTrash(target, trashDir string) error {
 	if _, err := os.Lstat(target); err != nil {
 		return fmt.Errorf("cannot access '%s': %w", target, err)
