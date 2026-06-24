@@ -73,7 +73,9 @@ else
         wget -qO "$TMP/bolt.tar.gz" "$URL"
     fi
     tar -xzf "$TMP/bolt.tar.gz" -C "$TMP"
-    mv "$TMP/$BINARY" "$INSTALL_DIR/$BINARY"
+    EXTRACTED="$(find "$TMP" -maxdepth 1 -type f ! -name '*.tar.gz' | head -1)"
+    [ -n "$EXTRACTED" ] || fail "could not find binary in release archive"
+    mv "$EXTRACTED" "$INSTALL_DIR/$BINARY"
     rm -rf "$TMP"
     ok "downloaded"
 fi
