@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
-
-	"os/exec"
 
 	homedir "github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
@@ -132,8 +132,13 @@ func (cr *CommandRecord) Execute() error {
 }
 
 func (cr *CommandRecord) RunUI() error {
+	f, err := os.OpenFile("bolt-debug.log", os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0600)
+	if err == nil {
+		log.SetOutput(f)
+		defer f.Close()
+	}
 	p := tea.NewProgram(tui.New(""), tea.WithAltScreen())
-	_, err := p.Run()
+	_, err = p.Run()
 	return err
 }
 

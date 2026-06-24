@@ -230,6 +230,7 @@ type diskUsageMsg struct{ free, total uint64 }
 type errMsg struct{ err error }
 type okMsg struct{ msg string }
 type cmdOutputMsg struct{ out string }
+type imgDrawnMsg struct{}
 
 type searchResultMsg struct {
 	results []searchResult
@@ -302,6 +303,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
+		return m, nil
+
+	case imgDrawnMsg:
 		return m, nil
 
 	case dirLoadedMsg:
@@ -418,6 +422,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor < m.offset {
 				m.offset--
 			}
+			m.clearPreview()
 			return m, m.loadPreviewCmd()
 		}
 
@@ -427,26 +432,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.cursor >= m.offset+m.listHeight() {
 				m.offset++
 			}
+			m.clearPreview()
 			return m, m.loadPreviewCmd()
 		}
 
 	case key.Matches(msg, keys.Home):
 		m.cursor, m.offset = 0, 0
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.End):
 		m.cursor = len(m.entries) - 1
 		m.offset = max(0, len(m.entries)-m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.PageUp):
 		m.cursor = max(0, m.cursor-m.listHeight())
 		m.offset = max(0, m.offset-m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.PageDown):
 		m.cursor = min(len(m.entries)-1, m.cursor+m.listHeight())
 		m.offset = min(max(0, len(m.entries)-m.listHeight()), m.offset+m.listHeight())
+		m.clearPreview()
 		return m, m.loadPreviewCmd()
 
 	case key.Matches(msg, keys.Enter):
@@ -761,14 +771,7 @@ func (m Model) View() string {
 	rightW := m.width - leftW - 4
 
 	left := sPaneActive.Width(leftW).Height(innerH - 2).Render(m.fileListView(leftW, innerH-2))
-	var right string
-	if m.previewIsImg && m.preview != "" {
-		// image contains raw ANSI true-color sequences that lipgloss can't measure;
-		// render it directly at exact pixel width to prevent bleed into adjacent pane
-		right = m.imagePane(rightW, innerH-2)
-	} else {
-		right = sPane.Width(rightW).Height(innerH - 2).Render(m.previewView(rightW, innerH-2))
-	}
+	right := sPane.Width(rightW).Height(innerH - 2).Render(m.previewView(rightW, innerH-2))
 
 	body := lipgloss.JoinHorizontal(lipgloss.Top, left, right)
 
@@ -938,7 +941,7 @@ func (m Model) previewView(w, h int) string {
 	}
 	if m.previewIsImg {
 		if m.preview == "" {
-			return hdr + meta + "\n" + sMuted.Render("  (could not decode image)")
+			return hdr + meta + "\n" + sMuted.Render("  loading…")
 		}
 		return hdr + meta + "\n" + m.preview
 	}
@@ -1008,42 +1011,6 @@ func (m Model) inputBarView() string {
 	return prompt + input + strings.Repeat(" ", gap) + hint
 }
 
-func (m Model) imagePane(w, h int) string {
-	border := lipgloss.RoundedBorder()
-	borderStyle := lipgloss.NewStyle().Foreground(clrBorder)
-
-	topBar := borderStyle.Render(border.TopLeft) +
-		borderStyle.Render(strings.Repeat(border.Top, w)) +
-		borderStyle.Render(border.TopRight)
-
-	botBar := borderStyle.Render(border.BottomLeft) +
-		borderStyle.Render(strings.Repeat(border.Bottom, w)) +
-		borderStyle.Render(border.BottomRight)
-
-	side := borderStyle.Render(border.Left)
-	sideR := borderStyle.Render(border.Right)
-
-	// Split rendered image into lines; strip trailing cursor/movement sequences
-	raw := strings.TrimRight(m.preview, "\n\r")
-	imgLines := strings.Split(raw, "\n")
-	var rows []string
-	rows = append(rows, topBar)
-	for i := range h {
-		var content string
-		if i < len(imgLines) {
-			line := imgLines[i]
-			// strip any trailing non-color escape sequences (cursor moves, etc.)
-			// by re-appending a hard reset and trusting lipgloss.Width for padding
-			content = line + "\x1b[0m"
-		}
-		// pad to exactly w visible chars so right border aligns
-		visW := lipgloss.Width(content)
-		pad := max(0, w-visW)
-		rows = append(rows, side+content+strings.Repeat(" ", pad)+sideR)
-	}
-	rows = append(rows, botBar)
-	return strings.Join(rows, "\n")
-}
 
 func (m Model) commandBarView() string {
 	prompt := sKey.Render(" : ")
@@ -1208,6 +1175,13 @@ func (m Model) navigate(path string) tea.Cmd {
 	}
 }
 
+func (m *Model) clearPreview() {
+	m.preview = ""
+	m.previewIsImg = false
+	m.previewIsDir = false
+	m.previewDir = nil
+}
+
 func (m Model) loadPreviewCmd() tea.Cmd {
 	if len(m.entries) == 0 {
 		return nil
@@ -1241,8 +1215,15 @@ func (m Model) openSelected() tea.Cmd {
 		return nil
 	}
 	entry := m.entries[m.cursor]
+	path := filepath.Join(m.path, entry.Name())
 	if entry.IsDir() {
-		return loadDir(filepath.Join(m.path, entry.Name()))
+		return loadDir(path)
+	}
+	if isImageFile(entry.Name()) {
+		return func() tea.Msg {
+			exec.Command("cmd", "/c", "start", "", path).Start()
+			return nil
+		}
 	}
 	return nil
 }
