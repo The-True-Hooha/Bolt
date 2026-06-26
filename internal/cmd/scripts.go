@@ -137,7 +137,8 @@ func (cr *CommandRecord) Execute() error {
 }
 
 func (cr *CommandRecord) RunUI() error {
-	p := tea.NewProgram(tui.New(""), tea.WithAltScreen())
+	cwd, _ := os.Getwd()
+	p := tea.NewProgram(tui.New(cwd), tea.WithAltScreen())
 	_, err := p.Run()
 	return err
 }
