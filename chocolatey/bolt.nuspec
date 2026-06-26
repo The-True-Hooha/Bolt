@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
   <metadata>
     <id>bolt-fm</id>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
     <title>Bolt FM</title>
     <authors>The-True-Hooha</authors>
     <projectUrl>https://github.com/The-True-Hooha/Bolt</projectUrl>

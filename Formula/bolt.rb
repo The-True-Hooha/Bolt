@@ -1,7 +1,7 @@
 class BoltFm < Formula
   desc "Bolt CLI tool"
   homepage "https://github.com/The-True-Hooha/Bolt"
-  version "0.1.4"
+  version "0.1.5"
   license "MIT"
 
   on_macos do

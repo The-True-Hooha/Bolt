@@ -1,12 +1,12 @@
 $ErrorActionPreference = 'Stop'
 
 $toolsDir   = "$(Split-Path -parent $MyInvocation.MyCommand.Definition)"
-$version    = '0.1.4'
+$version    = '0.1.5'
 $packageName = 'bolt-fm'
 $url64       = "https://github.com/The-True-Hooha/Bolt/releases/download/v$version/bolt-fm_${version}_windows_amd64.zip"
 
 # update after each release
-$checksum64  = 'ecb6b4f80c4d99b52dd023a524c3d343b24174d91298a02609b3b5db41d8555f'
+$checksum64  = 'bdf3696175e75357f8ae45dd579e4d9e6d49507a42a23468e429e78e75946f61'
 
 $packageArgs = @{
   packageName   = $packageName

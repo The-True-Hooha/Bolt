@@ -1,15 +1,15 @@
 {
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Bolt CLI tool",
   "homepage": "https://github.com/The-True-Hooha/Bolt",
   "license": "MIT",
   "architecture": {
     "64bit": {
-      "url": "https://github.com/The-True-Hooha/Bolt/releases/download/v0.1.1/bolt-fm_0.1.4_windows_amd64.zip",
-      "hash": "ecb6b4f80c4d99b52dd023a524c3d343b24174d91298a02609b3b5db41d8555f"
+      "url": "https://github.com/The-True-Hooha/Bolt/releases/download/v0.1.1/bolt-fm_0.1.5_windows_amd64.zip",
+      "hash": "bdf3696175e75357f8ae45dd579e4d9e6d49507a42a23468e429e78e75946f61"
     }
   },
-  "bin": [["bolt-fm_0.1.4_windows_amd64.exe", "bolt-fm"]],
+  "bin": [["bolt-fm_0.1.5_windows_amd64.exe", "bolt-fm"]],
   "checkver": {
     "github": "https://github.com/The-True-Hooha/Bolt",
     "regex": "releases/tag/v([\\d.]+)"

@@ -1,6 +1,6 @@
 # Maintainer: The-True-Hooha <https://github.com/The-True-Hooha>
 pkgname=bolt-fm-bin
-pkgver=0.1.4
+pkgver=0.1.5
 pkgrel=1
 pkgdesc="Bolt CLI tool"
 arch=('x86_64')
@@ -12,7 +12,7 @@ conflicts=('bolt')
 source=("bolt-fm_${pkgver}_linux_amd64.tar.gz::https://github.com/The-True-Hooha/Bolt/releases/download/v${pkgver}/bolt-fm_${pkgver}_linux_amd64.tar.gz")
 
 # update after each release
-sha256sums=('eb32c2cb58ee0bd5883ed8e17b7c3127b32bbe85de3501a5fdc39d0f2fd30f34')
+sha256sums=('04e6bac7c105643f3be238dc55e3a102120cb8553845f14b9976dc78ea7226dd')
 
 package() {
     install -Dm755 "${srcdir}/bolt-fm_${pkgver}_linux_amd64" "${pkgdir}/usr/bin/bolt-fm"
