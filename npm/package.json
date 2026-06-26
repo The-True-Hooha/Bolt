@@ -1,0 +1,26 @@
+{
+  "name": "@the-true-hooha/bolt-fm",
+  "version": "0.1.1",
+  "description": "Blazingly fast terminal file manager — TUI explorer, fuzzy search, file tags, diff viewer, trash, bookmarks and more",
+  "keywords": ["cli", "terminal", "file-manager", "tui", "files"],
+  "homepage": "https://github.com/The-True-Hooha/Bolt",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/The-True-Hooha/Bolt.git"
+  },
+  "bin": {
+    "bolt-fm": "./run.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "files": [
+    "install.js",
+    "run.js",
+    "bin/"
+  ]
+}

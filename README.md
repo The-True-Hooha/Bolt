@@ -46,7 +46,7 @@ Bolt is a keyboard-driven terminal file manager with a rich interactive TUI, syn
 curl -fsSL https://raw.githubusercontent.com/The-True-Hooha/Bolt/master/install.sh | bash
 ```
 
-Downloads latest release binary, installs to `~/.local/bin/bolt`, adds it to your shell profile.
+Downloads latest release binary, installs to `~/.local/bin/bolt-fm`, adds it to your shell profile.
 
 ### macOS / Linux — build from source
 
@@ -62,7 +62,7 @@ Requires Go 1.21+. Clones repo, compiles, and installs.
 irm https://raw.githubusercontent.com/The-True-Hooha/Bolt/master/install.ps1 | iex
 ```
 
-Downloads latest `.exe`, installs to `%APPDATA%\bolt\bin`, adds it to your **User PATH** — no admin rights needed.
+Downloads latest `.exe`, installs to `%APPDATA%\bolt-fm\bin`, adds it to your **User PATH** — no admin rights needed.
 
 ### Windows — build from source
 
@@ -77,21 +77,21 @@ Requires Go 1.21+.
 ```bash
 git clone https://github.com/The-True-Hooha/Bolt
 cd Bolt
-go build -o bolt .
-bolt install          # copies binary + updates PATH automatically
+go build -o bolt-fm .
+bolt-fm install          # copies binary + updates PATH automatically
 ```
 
 ### Custom install directory
 
 ```bash
-bolt install /usr/local/bin        # Linux / macOS
-bolt install C:\Tools\bolt         # Windows
+bolt-fm install /usr/local/bin        # Linux / macOS
+bolt-fm install C:\Tools\bolt-fm      # Windows
 ```
 
 ### Uninstall
 
 ```bash
-bolt uninstall        # removes binary and PATH entry
+bolt-fm uninstall        # removes binary and PATH entry
 ```
 
 ---
@@ -99,17 +99,17 @@ bolt uninstall        # removes binary and PATH entry
 ## Quick Start
 
 ```bash
-bolt          # open interactive TUI in current directory
-bolt ui .     # same, explicit
-bolt ls       # list files (like ls/dir)
-bolt preview README.md   # syntax-highlighted preview
+bolt-fm          # open interactive TUI in current directory
+bolt-fm ui .     # same, explicit
+bolt-fm ls       # list files (like ls/dir)
+bolt-fm preview README.md   # syntax-highlighted preview
 ```
 
 ---
 
 ## TUI — Interactive File Manager
 
-Launch with `bolt` or `bolt ui [path]`.
+Launch with `bolt-fm` or `bolt-fm ui [path]`.
 
 ### Navigation
 
@@ -187,7 +187,7 @@ Tags are stored in `~/.config/bolt/config.toml` and visible in the preview pane.
 
 | Key | Action |
 |-----|--------|
-| `:` | Command mode (run any `bolt` subcommand) |
+| `:` | Command mode (run any `bolt-fm` subcommand) |
 | `?` | Help screen |
 | `q` / `Ctrl+C` | Quit |
 
@@ -213,106 +213,106 @@ All commands are also available standalone:
 ### File Operations
 
 ```bash
-bolt ls [path]                    # list directory
-bolt ls --tag work                # filter by tag
-bolt cp <src> <dst>               # copy (use -r for dirs)
-bolt mv <src> <dst>               # move / rename
-bolt rm <path>                    # delete permanently
-bolt mkdir <name>                 # create directory
-bolt touch <file>                 # create/update file
-bolt pwd                          # print working directory
-bolt duplicate <file>             # copy with _copy suffix
-bolt symlink <target> <link>      # create symbolic link
-bolt chmod <octal> <file>         # change permissions
-bolt info <path>                  # detailed file info
+bolt-fm ls [path]                    # list directory
+bolt-fm ls --tag work                # filter by tag
+bolt-fm cp <src> <dst>               # copy (use -r for dirs)
+bolt-fm mv <src> <dst>               # move / rename
+bolt-fm rm <path>                    # delete permanently
+bolt-fm mkdir <name>                 # create directory
+bolt-fm touch <file>                 # create/update file
+bolt-fm pwd                          # print working directory
+bolt-fm duplicate <file>             # copy with _copy suffix
+bolt-fm symlink <target> <link>      # create symbolic link
+bolt-fm chmod <octal> <file>         # change permissions
+bolt-fm info <path>                  # detailed file info
 ```
 
 ### Trash
 
 ```bash
-bolt trash <file>                 # move to trash
-bolt trash-list                   # list trashed files
-bolt trash-restore <name> <dest>  # restore from trash
-bolt trash-empty [-f]             # permanently delete trash
+bolt-fm trash <file>                 # move to trash
+bolt-fm trash-list                   # list trashed files
+bolt-fm trash-restore <name> <dest>  # restore from trash
+bolt-fm trash-empty [-f]             # permanently delete trash
 ```
 
 ### Search & Find
 
 ```bash
-bolt search <pattern>             # fuzzy file search
-bolt search <pattern> --content   # include content search
-bolt search <pattern> --regex     # regex mode
-bolt find <pattern> [path]        # find files by name
-bolt grep <pattern> [path]        # grep file contents
-bolt index build [path]           # build search index
-bolt index status                 # index info
-bolt index clean                  # remove index
+bolt-fm search <pattern>             # fuzzy file search
+bolt-fm search <pattern> --content   # include content search
+bolt-fm search <pattern> --regex     # regex mode
+bolt-fm find <pattern> [path]        # find files by name
+bolt-fm grep <pattern> [path]        # grep file contents
+bolt-fm index build [path]           # build search index
+bolt-fm index status                 # index info
+bolt-fm index clean                  # remove index
 ```
 
 ### Preview & Diff
 
 ```bash
-bolt preview <file>               # syntax-highlighted preview
-bolt preview -t dracula <file>    # with theme
-bolt preview -n 50 <file>         # first 50 lines
-bolt preview -p <file>            # plain (no highlighting)
-bolt diff <file-a> <file-b>       # colorized unified diff
-bolt diff --no-color <a> <b>      # plain diff output
+bolt-fm preview <file>               # syntax-highlighted preview
+bolt-fm preview -t dracula <file>    # with theme
+bolt-fm preview -n 50 <file>         # first 50 lines
+bolt-fm preview -p <file>            # plain (no highlighting)
+bolt-fm diff <file-a> <file-b>       # colorized unified diff
+bolt-fm diff --no-color <a> <b>      # plain diff output
 ```
 
 ### Disk & Analysis
 
 ```bash
-bolt du [path]                    # disk usage breakdown
-bolt du -n 10 [path]              # top 10 entries
-bolt dupes [path]                 # find duplicate files
-bolt checksum <file>              # SHA-256 (default)
-bolt checksum -a md5 <file>       # MD5
-bolt checksum -a sha512 <file>    # SHA-512
-bolt recent                       # recently visited paths
+bolt-fm du [path]                    # disk usage breakdown
+bolt-fm du -n 10 [path]              # top 10 entries
+bolt-fm dupes [path]                 # find duplicate files
+bolt-fm checksum <file>              # SHA-256 (default)
+bolt-fm checksum -a md5 <file>       # MD5
+bolt-fm checksum -a sha512 <file>    # SHA-512
+bolt-fm recent                       # recently visited paths
 ```
 
 ### Tags
 
 ```bash
-bolt tag add <path> <tag>         # tag a file
-bolt tag remove <path> <tag>      # remove a tag
-bolt tag list <path>              # list file's tags
-bolt ls --tag <tag>               # list files with tag
+bolt-fm tag add <path> <tag>         # tag a file
+bolt-fm tag remove <path> <tag>      # remove a tag
+bolt-fm tag list <path>              # list file's tags
+bolt-fm ls --tag <tag>               # list files with tag
 ```
 
 ### Archives
 
 ```bash
-bolt zip <out.zip> <files...>     # create zip
-bolt unzip <file.zip> [dest]      # extract zip
-bolt tar create <out.tar.gz> <files...>   # create tar.gz
-bolt tar extract <file.tar.gz> [dest]     # extract tar.gz
-bolt tar list <file.tar.gz>               # list contents
+bolt-fm zip <out.zip> <files...>     # create zip
+bolt-fm unzip <file.zip> [dest]      # extract zip
+bolt-fm tar create <out.tar.gz> <files...>   # create tar.gz
+bolt-fm tar extract <file.tar.gz> [dest]     # extract tar.gz
+bolt-fm tar list <file.tar.gz>               # list contents
 ```
 
 ### Bookmarks
 
 ```bash
-bolt bm add <name> [path]         # save bookmark
-bolt bm go <name>                 # cd to bookmark
-bolt bm list                      # list bookmarks
-bolt bm rm <name>                 # delete bookmark
+bolt-fm bm add <name> [path]         # save bookmark
+bolt-fm bm go <name>                 # cd to bookmark
+bolt-fm bm list                      # list bookmarks
+bolt-fm bm rm <name>                 # delete bookmark
 ```
 
 ### Watch
 
 ```bash
-bolt watch [path]                 # watch for file changes
+bolt-fm watch [path]                 # watch for file changes
 ```
 
 ### Shell Completion
 
 ```bash
-bolt completion bash   > ~/.bash_completion.d/bolt
-bolt completion zsh    > ~/.zsh/completions/_bolt
-bolt completion fish   > ~/.config/fish/completions/bolt.fish
-bolt completion powershell >> $PROFILE
+bolt-fm completion bash   > ~/.bash_completion.d/bolt-fm
+bolt-fm completion zsh    > ~/.zsh/completions/_bolt-fm
+bolt-fm completion fish   > ~/.config/fish/completions/bolt-fm.fish
+bolt-fm completion powershell >> $PROFILE
 ```
 
 ---
@@ -353,7 +353,7 @@ command     = "/usr/local/bin/fzf-open"
 description = "open file via fzf"
 ```
 
-Then run with `bolt fzf-open` or from the TUI command bar (`:fzf-open`).
+Then run with `bolt-fm fzf-open` or from the TUI command bar (`:fzf-open`).
 
 ---
 
@@ -374,12 +374,12 @@ Then run with `bolt fzf-open` or from the TUI command bar (`:fzf-open`).
 File preview supports all [Chroma](https://github.com/alecthomas/chroma) themes:
 
 ```bash
-bolt preview -t monokai        <file>
-bolt preview -t dracula        <file>
-bolt preview -t github         <file>
-bolt preview -t solarized-dark <file>
-bolt preview -t nord           <file>
-bolt preview -t one-dark       <file>
+bolt-fm preview -t monokai        <file>
+bolt-fm preview -t dracula        <file>
+bolt-fm preview -t github         <file>
+bolt-fm preview -t solarized-dark <file>
+bolt-fm preview -t nord           <file>
+bolt-fm preview -t one-dark       <file>
 ```
 
 ---

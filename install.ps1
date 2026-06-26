@@ -6,7 +6,7 @@
     Downloads the latest prebuilt release from GitHub by default.
     Pass -FromSource to build from source instead (requires Go).
 .PARAMETER InstallDir
-    Target installation directory. Defaults to %APPDATA%\bolt\bin
+    Target installation directory. Defaults to %APPDATA%\bolt-fm\bin
 .PARAMETER FromSource
     Build from source instead of downloading a prebuilt binary.
 .EXAMPLE
@@ -15,7 +15,7 @@
     .\install.ps1 -FromSource
 #>
 param(
-    [string]$InstallDir = (Join-Path $env:APPDATA "bolt\bin"),
+    [string]$InstallDir = (Join-Path $env:APPDATA "bolt-fm\bin"),
     [switch]$FromSource
 )
 
@@ -32,7 +32,7 @@ Write-Host "  ⚡ Bolt installer" -ForegroundColor Yellow
 Write-Host ""
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
-$dest = Join-Path $InstallDir "bolt.exe"
+$dest = Join-Path $InstallDir "bolt-fm.exe"
 
 if ($FromSource) {
     if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
@@ -52,12 +52,14 @@ if ($FromSource) {
 
     Write-Info "building bolt..."
     Push-Location $buildDir
-    go build -ldflags="-s -w" -o bolt.exe .
+    $ver = (git -C $buildDir describe --tags --abbrev=0 2>$null) -replace '^v',''
+    if (-not $ver) { $ver = "dev" }
+    go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=$ver" -o bolt-fm.exe .
     if ($LASTEXITCODE -ne 0) { Write-Fail "build failed" }
     Pop-Location
     Write-Ok "build complete"
 
-    Copy-Item (Join-Path $buildDir "bolt.exe") $dest -Force
+    Copy-Item (Join-Path $buildDir "bolt-fm.exe") $dest -Force
 } else {
     Write-Info "fetching latest release info..."
     try {
@@ -105,5 +107,5 @@ if ($parts -notcontains $InstallDir) {
 }
 
 Write-Host ""
-Write-Ok "bolt installed! run: bolt --version"
+Write-Ok "bolt-fm installed! run: bolt-fm --version"
 Write-Host ""

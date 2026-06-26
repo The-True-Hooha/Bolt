@@ -4,7 +4,7 @@ set -e
 REPO="https://github.com/The-True-Hooha/Bolt"
 API="https://api.github.com/repos/The-True-Hooha/Bolt"
 INSTALL_DIR="${BOLT_INSTALL_DIR:-$HOME/.local/bin}"
-BINARY="bolt"
+BINARY="bolt-fm"
 FROM_SOURCE=0
 
 GREEN='\033[0;32m'; CYAN='\033[0;36m'; RED='\033[0;31m'; RESET='\033[0m'
@@ -38,7 +38,8 @@ if [ "$FROM_SOURCE" = "1" ]; then
     fi
 
     info "building bolt..."
-    (cd "$BUILD_DIR" && go build -ldflags="-s -w" -o "$BINARY" .)
+    VERSION=$(git -C "$BUILD_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "dev")
+    (cd "$BUILD_DIR" && go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=${VERSION}" -o "$BINARY" .)
     ok "build complete"
     mv "$BUILD_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
 else
@@ -65,14 +66,14 @@ else
 
     [ -n "$URL" ] || fail "no prebuilt for ${OS}_${ARCH} in release $TAG — try --from-source"
 
-    info "downloading bolt $TAG (${OS}_${ARCH})"
+    info "downloading bolt-fm $TAG (${OS}_${ARCH})"
     TMP="$(mktemp -d)"
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$URL" -o "$TMP/bolt.tar.gz"
+        curl -fsSL "$URL" -o "$TMP/bolt-fm.tar.gz"
     else
-        wget -qO "$TMP/bolt.tar.gz" "$URL"
+        wget -qO "$TMP/bolt-fm.tar.gz" "$URL"
     fi
-    tar -xzf "$TMP/bolt.tar.gz" -C "$TMP"
+    tar -xzf "$TMP/bolt-fm.tar.gz" -C "$TMP"
     EXTRACTED="$(find "$TMP" -maxdepth 1 -type f ! -name '*.tar.gz' | head -1)"
     [ -n "$EXTRACTED" ] || fail "could not find binary in release archive"
     mv "$EXTRACTED" "$INSTALL_DIR/$BINARY"
@@ -112,5 +113,5 @@ else
 fi
 
 echo ""
-ok "bolt installed! run: bolt --version"
+ok "bolt-fm installed! run: bolt-fm --version"
 echo ""

@@ -220,6 +220,7 @@ func InitCommands() *CommandRecord {
 	cr.AddNew(handleRecentCommand())
 	cr.AddNew(handleInstallCommand())
 	cr.AddNew(handleUninstallCommand())
+	cr.AddNew(handleUpdateCommand())
 
 	// shell completion is built into cobra automatically (bolt completion bash|zsh|fish|powershell)
 
@@ -335,6 +336,26 @@ func handleUninstallCommand() common.Command {
 			}
 			fmt.Printf("uninstalled bolt from %s\n", dir)
 			fmt.Println("restart your terminal for PATH change to take effect")
+			return nil
+		},
+	}
+}
+
+func handleUpdateCommand() common.Command {
+	return common.Command{
+		Name:        "update",
+		Description: "update bolt to the latest release",
+		Execute: func(args []string) error {
+			fmt.Println("checking for updates...")
+			latest, upToDate, err := boltinstall.SelfUpdate(version)
+			if err != nil {
+				return err
+			}
+			if upToDate {
+				fmt.Printf("already up to date (v%s)\n", latest)
+				return nil
+			}
+			fmt.Printf("updated to v%s\n", latest)
 			return nil
 		},
 	}

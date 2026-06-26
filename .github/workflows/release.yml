@@ -44,25 +44,23 @@ jobs:
           GOARCH: ${{ matrix.arch }}
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          OUT="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.ext }}"
-          go build -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${OUT}" .
+          OUT="bolt-fm_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.ext }}"
+          go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=${VERSION}" -o "dist/${OUT}" .
           echo "OUT=${OUT}" >> $GITHUB_ENV
 
       - name: Archive (Unix)
         if: matrix.ext == ''
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          NAME="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}"
+          NAME="bolt-fm_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}"
           cd dist && tar -czf "${NAME}.tar.gz" "${NAME}"
-          echo "ASSET=dist/${NAME}.tar.gz" >> $GITHUB_ENV
 
       - name: Archive (Windows)
         if: matrix.ext == '.exe'
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          NAME="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}.exe"
+          NAME="bolt-fm_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}.exe"
           cd dist && zip "${NAME%.exe}.zip" "${NAME}"
-          echo "ASSET=dist/bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}.zip" >> $GITHUB_ENV
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4.6.2
@@ -77,13 +75,90 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: master
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: actions/download-artifact@v4
         with:
           path: dist
           merge-multiple: true
 
+      - name: Generate checksums
+        run: sha256sum dist/* | tee dist/checksums.txt
+
+      - name: Update package manifests
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+
+          # parse checksums
+          SHA_LINUX_AMD64=$(grep "linux_amd64.tar.gz"    dist/checksums.txt | awk '{print $1}')
+          SHA_LINUX_ARM64=$(grep "linux_arm64.tar.gz"    dist/checksums.txt | awk '{print $1}')
+          SHA_DARWIN_AMD64=$(grep "darwin_amd64.tar.gz"  dist/checksums.txt | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(grep "darwin_arm64.tar.gz"  dist/checksums.txt | awk '{print $1}')
+          SHA_WINDOWS=$(grep    "windows_amd64.zip"      dist/checksums.txt | awk '{print $1}')
+
+          PREV_VERSION=$(grep 'version "' Formula/bolt.rb | head -1 | sed 's/.*version "\(.*\)"/\1/')
+
+          sed -i "s/version \"${PREV_VERSION}\"/version \"${VERSION}\"/" Formula/bolt.rb
+          sed -i "s|bolt-fm_${PREV_VERSION}|bolt-fm_${VERSION}|g"              Formula/bolt.rb
+          sed -i "s/REPLACE_WITH_SHA256_darwin_arm64/${SHA_DARWIN_ARM64}/"  Formula/bolt.rb
+          sed -i "s/REPLACE_WITH_SHA256_darwin_amd64/${SHA_DARWIN_AMD64}/"  Formula/bolt.rb
+          sed -i "s/REPLACE_WITH_SHA256_linux_arm64/${SHA_LINUX_ARM64}/"    Formula/bolt.rb
+          sed -i "s/REPLACE_WITH_SHA256_linux_amd64/${SHA_LINUX_AMD64}/"    Formula/bolt.rb
+          # replace old real checksums with new ones on subsequent releases
+          PREV_SHA_DA=$(grep -A1 "darwin_arm64.tar.gz" Formula/bolt.rb | grep sha256 | awk '{print $2}' | tr -d '"' || true)
+          PREV_SHA_DI=$(grep -A1 "darwin_amd64.tar.gz" Formula/bolt.rb | grep sha256 | awk '{print $2}' | tr -d '"' || true)
+          PREV_SHA_LA=$(grep -A1 "linux_arm64.tar.gz"  Formula/bolt.rb | grep sha256 | awk '{print $2}' | tr -d '"' || true)
+          PREV_SHA_LI=$(grep -A1 "linux_amd64.tar.gz"  Formula/bolt.rb | grep sha256 | awk '{print $2}' | tr -d '"' || true)
+          [ -n "$PREV_SHA_DA" ] && sed -i "s/${PREV_SHA_DA}/${SHA_DARWIN_ARM64}/" Formula/bolt.rb || true
+          [ -n "$PREV_SHA_DI" ] && sed -i "s/${PREV_SHA_DI}/${SHA_DARWIN_AMD64}/" Formula/bolt.rb || true
+          [ -n "$PREV_SHA_LA" ] && sed -i "s/${PREV_SHA_LA}/${SHA_LINUX_ARM64}/"  Formula/bolt.rb || true
+          [ -n "$PREV_SHA_LI" ] && sed -i "s/${PREV_SHA_LI}/${SHA_LINUX_AMD64}/"  Formula/bolt.rb || true
+
+          sed -i "s/\"version\": \"${PREV_VERSION}\"/\"version\": \"${VERSION}\"/" bucket/bolt-fm.json
+          sed -i "s|bolt-fm_${PREV_VERSION}|bolt-fm_${VERSION}|g"                        bucket/bolt-fm.json
+          sed -i "s/REPLACE_WITH_SHA256_windows_amd64/${SHA_WINDOWS}/"             bucket/bolt-fm.json
+          sed -i "s/\"hash\": \"[a-f0-9]\{64\}\"/\"hash\": \"${SHA_WINDOWS}\"/"   bucket/bolt-fm.json
+
+          sed -i "s/<version>${PREV_VERSION}<\/version>/<version>${VERSION}<\/version>/" chocolatey/bolt.nuspec
+          sed -i "s/bolt-fm_${PREV_VERSION}/bolt-fm_${VERSION}/g"                              chocolatey/tools/chocolateyInstall.ps1
+          sed -i "s/\$version    = '${PREV_VERSION}'/\$version    = '${VERSION}'/"       chocolatey/tools/chocolateyInstall.ps1
+          sed -i "s/REPLACE_WITH_SHA256_windows_amd64/${SHA_WINDOWS}/"                   chocolatey/tools/chocolateyInstall.ps1
+          sed -i "s/\$checksum64  = '[a-f0-9]\{64\}'/\$checksum64  = '${SHA_WINDOWS}'/" chocolatey/tools/chocolateyInstall.ps1
+
+          sed -i "s/pkgver=${PREV_VERSION}/pkgver=${VERSION}/"          aur/PKGBUILD
+          sed -i "s|bolt-fm_${PREV_VERSION}|bolt-fm_${VERSION}|g"             aur/PKGBUILD
+          sed -i "s/REPLACE_WITH_SHA256_linux_amd64/${SHA_LINUX_AMD64}/" aur/PKGBUILD
+          sed -i "s/sha256sums=('[a-f0-9]\{64\}')/sha256sums=('${SHA_LINUX_AMD64}')/" aur/PKGBUILD
+
+          OLD_DIR="winget/manifests/t/TheTrueHooha/Bolt/${PREV_VERSION}"
+          NEW_DIR="winget/manifests/t/TheTrueHooha/Bolt/${VERSION}"
+          if [ "$OLD_DIR" != "$NEW_DIR" ] && [ -d "$OLD_DIR" ]; then
+            cp -r "$OLD_DIR" "$NEW_DIR"
+          fi
+          for f in "$NEW_DIR"/*.yaml; do
+            sed -i "s/PackageVersion: ${PREV_VERSION}/PackageVersion: ${VERSION}/" "$f"
+            sed -i "s|bolt-fm_${PREV_VERSION}|bolt-fm_${VERSION}|g"                      "$f"
+            sed -i "s/REPLACE_WITH_SHA256_windows_amd64/${SHA_WINDOWS}/"            "$f"
+            sed -i "s/InstallerSha256: [a-f0-9]\{64\}/InstallerSha256: ${SHA_WINDOWS}/" "$f"
+          done
+
+          sed -i "s/\"version\": \"${PREV_VERSION}\"/\"version\": \"${VERSION}\"/" npm/package.json
+          sed -i "s/const VERSION = '${PREV_VERSION}'/const VERSION = '${VERSION}'/" npm/install.js
+
+      - name: Commit updated manifests
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/bolt.rb bucket/bolt-fm.json chocolatey/ aur/PKGBUILD winget/ npm/package.json npm/install.js
+          git diff --staged --quiet || git commit -m "chore: update manifests for v${VERSION}"
+          git push origin master
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.3.2
         with:
           files: dist/*
           generate_release_notes: true

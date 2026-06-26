@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>bolt-fm</id>
+    <version>0.1.1</version>
+    <title>Bolt FM</title>
+    <authors>The-True-Hooha</authors>
+    <projectUrl>https://github.com/The-True-Hooha/Bolt</projectUrl>
+    <licenseUrl>https://github.com/The-True-Hooha/Bolt/blob/master/LICENSE</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <description>Bolt CLI tool - a fast command-line utility.</description>
+    <tags>bolt cli tool</tags>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>
