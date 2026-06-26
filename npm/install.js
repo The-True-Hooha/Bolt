@@ -7,7 +7,7 @@ const path = require('path');
 const os = require('os');
 const { execSync } = require('child_process');
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.4';
 const REPO = 'The-True-Hooha/Bolt';
 const BIN_DIR = path.join(__dirname, 'bin');
 

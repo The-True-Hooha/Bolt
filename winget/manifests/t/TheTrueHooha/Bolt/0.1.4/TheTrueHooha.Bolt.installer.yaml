@@ -1,0 +1,19 @@
+PackageIdentifier: TheTrueHooha.Bolt
+PackageVersion: 0.1.4
+InstallerLocale: en-US
+InstallerType: zip
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/The-True-Hooha/Bolt/releases/download/v0.1.1/bolt-fm_0.1.4_windows_amd64.zip
+    # update after each release
+    InstallerSha256: ecb6b4f80c4d99b52dd023a524c3d343b24174d91298a02609b3b5db41d8555f
+    NestedInstallerType: portable
+    NestedInstallerFiles:
+      - RelativeFilePath: bolt-fm_0.1.4_windows_amd64.exe
+        PortableCommandAlias: bolt-fm
+ManifestType: installer
+ManifestVersion: 1.6.0

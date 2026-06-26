@@ -1,0 +1,16 @@
+PackageIdentifier: TheTrueHooha.Bolt
+PackageVersion: 0.1.4
+PackageLocale: en-US
+Publisher: The-True-Hooha
+PackageName: Bolt
+PackageUrl: https://github.com/The-True-Hooha/Bolt
+License: MIT
+LicenseUrl: https://github.com/The-True-Hooha/Bolt/blob/master/LICENSE
+ShortDescription: Bolt CLI tool
+Description: Bolt is a fast command-line utility built with Go.
+Tags:
+  - bolt
+  - cli
+  - tool
+ManifestType: defaultLocale
+ManifestVersion: 1.6.0

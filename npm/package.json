@@ -1,6 +1,6 @@
 {
   "name": "@the-true-hooha/bolt-fm",
-  "version": "0.1.1",
+  "version": "0.1.4",
   "description": "Blazingly fast terminal file manager — TUI explorer, fuzzy search, file tags, diff viewer, trash, bookmarks and more",
   "keywords": ["cli", "terminal", "file-manager", "tui", "files"],
   "homepage": "https://github.com/The-True-Hooha/Bolt",
