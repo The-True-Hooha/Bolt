@@ -1,4 +1,4 @@
-BINARY  := bolt
+BINARY  := bolt-fm
 VERSION := 0.1.0
 LDFLAGS := -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=$(VERSION)"
 
@@ -40,8 +40,8 @@ help:
 	@echo "usage: make <target>"
 	@echo ""
 	@echo "  build      build for current platform"
-	@echo "  install    build then install to PATH via bolt install"
-	@echo "  uninstall  remove bolt from PATH via bolt uninstall"
+	@echo "  install    build then install to PATH via bolt-fm install"
+	@echo "  uninstall  remove bolt-fm from PATH via bolt-fm uninstall"
 	@echo "  release    cross-compile all platforms into dist/"
 	@echo "  test       run tests"
 	@echo "  lint       run go vet"

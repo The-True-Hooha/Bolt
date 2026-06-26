@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 )
 
@@ -190,16 +191,16 @@ func InstallDir() string {
 		if appData == "" {
 			appData = filepath.Join(home, "AppData", "Roaming")
 		}
-		return filepath.Join(appData, "bolt", "bin")
+		return filepath.Join(appData, "bolt-fm", "bin")
 	}
 	return filepath.Join(home, ".local", "bin")
 }
 
 func BinaryName() string {
 	if runtime.GOOS == "windows" {
-		return "bolt.exe"
+		return "bolt-fm.exe"
 	}
-	return "bolt"
+	return "bolt-fm"
 }
 
 func Install(dir string) error {
@@ -289,10 +290,8 @@ func addToPathUnix(dir string) error {
 
 	// already in PATH?
 	currentPath := os.Getenv("PATH")
-	for _, p := range strings.Split(currentPath, ":") {
-		if p == dir {
-			return nil // already active
-		}
+	if slices.Contains(strings.Split(currentPath, ":"), dir) {
+		return nil // already active
 	}
 
 	rcFiles := shellRCFiles(home)
