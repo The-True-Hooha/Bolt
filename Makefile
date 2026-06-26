@@ -1,6 +1,6 @@
 BINARY  := bolt
 VERSION := 0.1.0
-LDFLAGS := -ldflags="-s -w -X main.version=$(VERSION)"
+LDFLAGS := -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=$(VERSION)"
 
 PLATFORMS := \
 	darwin/amd64 \

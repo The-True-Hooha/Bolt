@@ -1,8 +1,13 @@
 package install
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,7 +15,174 @@ import (
 	"strings"
 )
 
-// InstallDir returns the default directory where bolt should be installed.
+const githubAPI = "https://api.github.com/repos/The-True-Hooha/Bolt/releases/latest"
+
+func SelfUpdate(currentVersion string) (latestVersion string, upToDate bool, err error) {
+	resp, err := http.Get(githubAPI)
+	if err != nil {
+		return "", false, fmt.Errorf("cannot reach GitHub: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var release struct {
+		TagName string `json:"tag_name"`
+		Assets  []struct {
+			Name               string `json:"name"`
+			BrowserDownloadURL string `json:"browser_download_url"`
+		} `json:"assets"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", false, fmt.Errorf("cannot parse release info: %w", err)
+	}
+
+	latestVersion = strings.TrimPrefix(release.TagName, "v")
+	if latestVersion == currentVersion {
+		return latestVersion, true, nil
+	}
+
+	os_ := runtime.GOOS
+	arch := runtime.GOARCH
+	if arch == "amd64" {
+		arch = "amd64"
+	}
+
+	// find matching asset
+	var assetURL, assetName string
+	for _, a := range release.Assets {
+		name := strings.ToLower(a.Name)
+		if strings.Contains(name, os_) && strings.Contains(name, arch) {
+			assetURL = a.BrowserDownloadURL
+			assetName = a.Name
+			break
+		}
+	}
+	if assetURL == "" {
+		return latestVersion, false, fmt.Errorf("no prebuilt for %s/%s in release %s", os_, arch, release.TagName)
+	}
+
+	// download asset
+	dlResp, err := http.Get(assetURL)
+	if err != nil {
+		return latestVersion, false, fmt.Errorf("download failed: %w", err)
+	}
+	defer dlResp.Body.Close()
+
+	tmp, err := os.MkdirTemp("", "bolt-update-*")
+	if err != nil {
+		return latestVersion, false, err
+	}
+	defer os.RemoveAll(tmp)
+
+	archivePath := filepath.Join(tmp, assetName)
+	f, err := os.Create(archivePath)
+	if err != nil {
+		return latestVersion, false, err
+	}
+	if _, err := io.Copy(f, dlResp.Body); err != nil {
+		f.Close()
+		return latestVersion, false, err
+	}
+	f.Close()
+
+	// extract binary
+	var binPath string
+	if strings.HasSuffix(assetName, ".zip") {
+		binPath, err = extractZip(archivePath, tmp)
+	} else {
+		binPath, err = extractTarGz(archivePath, tmp)
+	}
+	if err != nil {
+		return latestVersion, false, fmt.Errorf("extract failed: %w", err)
+	}
+
+	// replace running binary
+	exe, err := os.Executable()
+	if err != nil {
+		return latestVersion, false, fmt.Errorf("cannot find current executable: %w", err)
+	}
+	exe, _ = filepath.EvalSymlinks(exe)
+
+	if err := copyFile(binPath, exe); err != nil {
+		return latestVersion, false, fmt.Errorf("cannot replace binary: %w", err)
+	}
+	if runtime.GOOS != "windows" {
+		_ = os.Chmod(exe, 0755)
+	}
+	return latestVersion, false, nil
+}
+
+func extractTarGz(archivePath, destDir string) (string, error) {
+	f, err := os.Open(archivePath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		return "", err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return "", err
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		out := filepath.Join(destDir, filepath.Base(hdr.Name))
+		of, err := os.Create(out)
+		if err != nil {
+			return "", err
+		}
+		if _, err := io.Copy(of, tr); err != nil {
+			of.Close()
+			return "", err
+		}
+		of.Close()
+		return out, nil
+	}
+	return "", fmt.Errorf("no file found in archive")
+}
+
+func extractZip(archivePath, destDir string) (string, error) {
+	r, err := zip.OpenReader(archivePath)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+
+	for _, f := range r.File {
+		if f.FileInfo().IsDir() {
+			continue
+		}
+		rc, err := f.Open()
+		if err != nil {
+			return "", err
+		}
+		out := filepath.Join(destDir, filepath.Base(f.Name))
+		of, err := os.Create(out)
+		if err != nil {
+			rc.Close()
+			return "", err
+		}
+		_, err = io.Copy(of, rc)
+		of.Close()
+		rc.Close()
+		if err != nil {
+			return "", err
+		}
+		return out, nil
+	}
+	return "", fmt.Errorf("no file found in archive")
+}
+
 func InstallDir() string {
 	home, _ := os.UserHomeDir()
 	if runtime.GOOS == "windows" {
@@ -23,7 +195,6 @@ func InstallDir() string {
 	return filepath.Join(home, ".local", "bin")
 }
 
-// BinaryName returns the platform-appropriate binary name.
 func BinaryName() string {
 	if runtime.GOOS == "windows" {
 		return "bolt.exe"
@@ -31,7 +202,6 @@ func BinaryName() string {
 	return "bolt"
 }
 
-// Install copies the running binary to dir and adds dir to the user PATH.
 func Install(dir string) error {
 	src, err := os.Executable()
 	if err != nil {
@@ -64,7 +234,6 @@ func Install(dir string) error {
 	return nil
 }
 
-// Uninstall removes the bolt binary from dir and removes dir from user PATH.
 func Uninstall(dir string) error {
 	dst := filepath.Join(dir, BinaryName())
 	if err := os.Remove(dst); err != nil && !os.IsNotExist(err) {
@@ -88,7 +257,6 @@ func removeFromPath(dir string) error {
 	return removeFromPathUnix(dir)
 }
 
-// Windows: use PowerShell to update User-level PATH in registry (no admin needed)
 func addToPathWindows(dir string) error {
 	script := fmt.Sprintf(`
 $dir = '%s'
@@ -115,7 +283,6 @@ $parts = [Environment]::GetEnvironmentVariable('PATH', $scope) -split ';' | Wher
 	return cmd.Run()
 }
 
-// Unix: append export line to shell rc files if not already present
 func addToPathUnix(dir string) error {
 	home, _ := os.UserHomeDir()
 	line := fmt.Sprintf(`export PATH="%s:$PATH"`, dir)

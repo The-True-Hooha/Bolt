@@ -38,7 +38,8 @@ if [ "$FROM_SOURCE" = "1" ]; then
     fi
 
     info "building bolt..."
-    (cd "$BUILD_DIR" && go build -ldflags="-s -w" -o "$BINARY" .)
+    VERSION=$(git -C "$BUILD_DIR" describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo "dev")
+    (cd "$BUILD_DIR" && go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=${VERSION}" -o "$BINARY" .)
     ok "build complete"
     mv "$BUILD_DIR/$BINARY" "$INSTALL_DIR/$BINARY"
 else

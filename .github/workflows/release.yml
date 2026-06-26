@@ -45,7 +45,7 @@ jobs:
         run: |
           VERSION=${GITHUB_REF_NAME#v}
           OUT="bolt_${VERSION}_${{ matrix.os }}_${{ matrix.arch }}${{ matrix.ext }}"
-          go build -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${OUT}" .
+          go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=${VERSION}" -o "dist/${OUT}" .
           echo "OUT=${OUT}" >> $GITHUB_ENV
 
       - name: Archive (Unix)

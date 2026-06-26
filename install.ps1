@@ -52,7 +52,9 @@ if ($FromSource) {
 
     Write-Info "building bolt..."
     Push-Location $buildDir
-    go build -ldflags="-s -w" -o bolt.exe .
+    $ver = (git -C $buildDir describe --tags --abbrev=0 2>$null) -replace '^v',''
+    if (-not $ver) { $ver = "dev" }
+    go build -ldflags="-s -w -X github.com/The-True-Hooha/Bolt/internal/cmd.version=$ver" -o bolt.exe .
     if ($LASTEXITCODE -ne 0) { Write-Fail "build failed" }
     Pop-Location
     Write-Ok "build complete"
