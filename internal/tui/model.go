@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"sort"
 	"strings"
@@ -210,6 +211,7 @@ type keyMap struct {
 	Undo         key.Binding
 	Recent       key.Binding
 	FindDupes    key.Binding
+	Drives       key.Binding
 }
 
 var keys = keyMap{
@@ -256,6 +258,7 @@ var keys = keyMap{
 	Undo:         key.NewBinding(key.WithKeys("ctrl+z"), key.WithHelp("^z", "undo")),
 	Recent:       key.NewBinding(key.WithKeys("ctrl+r"), key.WithHelp("^r", "recent")),
 	FindDupes:    key.NewBinding(key.WithKeys("F"), key.WithHelp("F", "find dupes")),
+	Drives:       key.NewBinding(key.WithKeys("`"), key.WithHelp("`", "drives")),
 }
 
 type dirLoadedMsg struct {
@@ -377,6 +380,13 @@ type Model struct {
 	dupeGroups  []dupeGroup
 	dupeLoading bool
 	dupeCursor  int
+
+	showDrives  bool
+	driveList   []string
+	driveCursor int
+
+	cmdHistory    []string
+	cmdHistoryIdx int
 }
 
 func New(startPath string) Model {
@@ -578,6 +588,31 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				dir := filepath.Dir(m.dupeGroups[m.dupeCursor].paths[0])
 				m.showDupes = false
 				return m, m.navigate(dir)
+			}
+		}
+		return m, nil
+	}
+
+	if m.showDrives {
+		switch msg.Type {
+		case tea.KeyEsc:
+			m.showDrives = false
+			return m, nil
+		case tea.KeyUp:
+			if m.driveCursor > 0 {
+				m.driveCursor--
+			}
+			return m, nil
+		case tea.KeyDown:
+			if m.driveCursor < len(m.driveList)-1 {
+				m.driveCursor++
+			}
+			return m, nil
+		case tea.KeyEnter:
+			if m.driveCursor < len(m.driveList) {
+				drive := m.driveList[m.driveCursor]
+				m.showDrives = false
+				return m, m.navigate(drive)
 			}
 		}
 		return m, nil
@@ -826,6 +861,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.Recent):
 		m.showRecent = !m.showRecent
 		m.showDupes = false
+		m.showDrives = false
 		if m.showRecent {
 			return m, m.loadRecentCmd()
 		}
@@ -833,10 +869,20 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, keys.FindDupes):
 		m.showDupes = !m.showDupes
 		m.showRecent = false
+		m.showDrives = false
 		if m.showDupes {
 			m.dupeLoading = true
 			m.dupeGroups = nil
 			return m, m.findDupesCmd()
+		}
+
+	case key.Matches(msg, keys.Drives):
+		m.showDrives = !m.showDrives
+		m.showRecent = false
+		m.showDupes = false
+		if m.showDrives {
+			m.driveList = listDrives()
+			m.driveCursor = 0
 		}
 	}
 
@@ -933,11 +979,36 @@ func (m Model) handleCommandInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.inputMode = modeNormal
 		m.cmdInput = ""
 		m.cmdOutput = ""
+		m.cmdHistoryIdx = -1
 	case tea.KeyEnter:
 		if m.cmdInput != "" {
+			// prepend to history, deduplicate consecutive, cap at 50
+			if len(m.cmdHistory) == 0 || m.cmdHistory[0] != m.cmdInput {
+				m.cmdHistory = append([]string{m.cmdInput}, m.cmdHistory...)
+				if len(m.cmdHistory) > 50 {
+					m.cmdHistory = m.cmdHistory[:50]
+				}
+			}
+			m.cmdHistoryIdx = -1
 			return m, m.runCommandCmd()
 		}
 		m.inputMode = modeNormal
+	case tea.KeyUp:
+		if len(m.cmdHistory) > 0 {
+			m.cmdHistoryIdx++
+			if m.cmdHistoryIdx >= len(m.cmdHistory) {
+				m.cmdHistoryIdx = len(m.cmdHistory) - 1
+			}
+			m.cmdInput = m.cmdHistory[m.cmdHistoryIdx]
+		}
+	case tea.KeyDown:
+		if m.cmdHistoryIdx > 0 {
+			m.cmdHistoryIdx--
+			m.cmdInput = m.cmdHistory[m.cmdHistoryIdx]
+		} else {
+			m.cmdHistoryIdx = -1
+			m.cmdInput = ""
+		}
 	case tea.KeyBackspace:
 		if len(m.cmdInput) > 0 {
 			_, size := utf8.DecodeLastRuneInString(m.cmdInput)
@@ -966,7 +1037,9 @@ func (m Model) runCommandCmd() tea.Cmd {
 				return dirLoadedMsg{path: home}
 			}
 			target := parts[1]
-			if !filepath.IsAbs(target) {
+			if target == "/" || target == "\\" {
+				target = filepath.VolumeName(cwd) + string(filepath.Separator)
+			} else if !filepath.IsAbs(target) {
 				target = filepath.Join(cwd, target)
 			}
 			entries, err := os.ReadDir(target)
@@ -1101,6 +1174,9 @@ func (m Model) View() string {
 	}
 	if m.showDupes {
 		parts = append(parts, m.dupesPanelView())
+	}
+	if m.showDrives {
+		parts = append(parts, m.drivesPanelView())
 	}
 	parts = append(parts, status)
 	return lipgloss.JoinVertical(lipgloss.Left, parts...)
@@ -1496,6 +1572,24 @@ func (m Model) recentPanelView() string {
 	return sSearchBar.Width(m.width - 2).Render(strings.Join(rows, "\n"))
 }
 
+func (m Model) drivesPanelView() string {
+	var rows []string
+	title := sHeader.Width(m.width - 2).Render("  Drives  (↑↓ navigate  ↵ open  esc close)")
+	rows = append(rows, title)
+	if len(m.driveList) == 0 {
+		rows = append(rows, sMuted.Render("  no drives found"))
+	}
+	for i, d := range m.driveList {
+		line := "  " + d
+		if i == m.driveCursor {
+			rows = append(rows, sSearchCursor.Render("❯"+line))
+		} else {
+			rows = append(rows, sSearchResult.Render(" "+line))
+		}
+	}
+	return sSearchBar.Width(m.width - 2).Render(strings.Join(rows, "\n"))
+}
+
 func (m Model) dupesPanelView() string {
 	var rows []string
 	title := "  Duplicate Files"
@@ -1559,7 +1653,7 @@ func (m Model) statusBarView() string {
 		{"e", "edit"}, {"d", "diff"}, {"#", "sum"}, {"t", "tag"}, {"i", "info"},
 		{"^r", "recent"}, {"F", "dupes"}, {"^z", "undo"},
 		{"m", "mkdir"}, {"n", "new"}, {"/", "filter"}, {"P", "goto"},
-		{"^f", "search"}, {":", "cmd"}, {"s", "sort"}, {"~", "home"}, {"[/]", "hist"}, {"?", "help"}, {"q", "quit"},
+		{"^f", "search"}, {":", "cmd"}, {"s", "sort"}, {"~", "home"}, {"`", "drives"}, {"[/]", "hist"}, {"?", "help"}, {"q", "quit"},
 	}
 	var parts []string
 	for _, s := range shorts {
@@ -1581,7 +1675,7 @@ func (m Model) helpView() string {
 		{"Navigation", []key.Binding{keys.Up, keys.Down, keys.Home, keys.End, keys.PageUp, keys.PageDown, keys.Enter, keys.Back, keys.GotoHome, keys.NavBack, keys.NavForward, keys.GotoPath}},
 		{"Selection & Clipboard", []key.Binding{keys.Select, keys.SelectAll, keys.Copy, keys.Cut, keys.Paste}},
 		{"File Operations", []key.Binding{keys.Delete, keys.Trash, keys.Rename, keys.BatchRename, keys.NewDir, keys.NewFile, keys.CopyPath, keys.Duplicate, keys.Symlink, keys.Chmod}},
-		{"Editor & View", []key.Binding{keys.Editor, keys.Info, keys.Diff, keys.Checksum, keys.Recent, keys.FindDupes}},
+		{"Editor & View", []key.Binding{keys.Editor, keys.Info, keys.Diff, keys.Checksum, keys.Recent, keys.FindDupes, keys.Drives}},
 		{"Tags", []key.Binding{keys.TagAdd, keys.TagRemove}},
 		{"Undo", []key.Binding{keys.Undo}},
 		{"View", []key.Binding{keys.Filter, keys.Search, keys.SortCycle, keys.ToggleHidden, keys.Help}},
@@ -2351,6 +2445,33 @@ func copyFile(src, dst string, mode os.FileMode) error {
 		}
 	}
 	return out.Sync()
+}
+
+func listDrives() []string {
+	var drives []string
+	if runtime.GOOS == "windows" {
+		for c := 'A'; c <= 'Z'; c++ {
+			p := string(c) + `:\`
+			if _, err := os.Stat(p); err == nil {
+				drives = append(drives, p)
+			}
+		}
+		return drives
+	}
+	// Unix: always include root
+	drives = append(drives, "/")
+	for _, base := range []string{"/media", "/mnt"} {
+		entries, err := os.ReadDir(base)
+		if err != nil {
+			continue
+		}
+		for _, e := range entries {
+			if e.IsDir() {
+				drives = append(drives, filepath.Join(base, e.Name()))
+			}
+		}
+	}
+	return drives
 }
 
 func humanizeSize(size int64) string {
